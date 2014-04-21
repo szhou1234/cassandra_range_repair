@@ -25,8 +25,8 @@ def lrange(num1, num2 = None, step = 1):
 def run_command(command, *args):
     cmd = " ".join([command] + list(args))
     proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    proc.wait()
-    return proc.returncode == 0, proc.returncode, cmd, proc.stdout.read(), proc.stderr.read()
+    stdout, stderr = proc.communicate()
+    return proc.returncode == 0, proc.returncode, cmd, stdout, stderr
 
 def is_murmur_ring(ring):
     for i in ring:
@@ -37,6 +37,7 @@ def is_murmur_ring(ring):
 
 def get_ring_tokens():
     tokens = []
+    print "Running nodetool ring, this will take a little bit of time."
     success, return_code, _, stdout, stderr = run_command("nodetool", "ring")
 
     if not success:
@@ -45,26 +46,32 @@ def get_ring_tokens():
     for line in stdout.split("\n")[6:]:
         segments = line.split()
         if len(segments) == 8:
-            tokens.append(int(segments[-1]))
+            tokens.append(long(segments[-1]))
 
-    return True, tokens, None
+    return True, sorted(tokens), None
 
-def get_host_token():
-    success, return_code, _, stdout, stderr = run_command("nodetool", "info")
-    if not success or stdout.find("Token") != 0:
-        return False, None, stderr
+def get_host_tokens():
+    success, return_code, _, stdout, stderr = run_command("nodetool", "info", "-T")
+    if not success or stdout.find("Token") == 0:
+        print stdout
+        return False, [], stderr
+    token_list = []
+    for line in stdout.split('\n'):
+        if not 'Token' == line[:5]: continue
+        parts = line.split()
+        if not len(parts) == 3: continue
+        if not parts[1] == ':': continue
+        token_list.append(long(parts[2]))
 
-    return True, int(stdout.split()[2]), None
+    return True, token_list, None
 
 def get_range_termination(token, ring):
     for i in ring:
-        if token > i:
+        if token < i:
             return i
-
-    if is_murmur_ring(ring):
-        return 2**63 - 1
-
-    return 2**127 - 1
+    # token is the largest value in the ring.  Since the rings wrap around,
+    # return the first value.
+    return ring[0]              
 
 def get_sub_range_generator(start, stop, steps=100):
     step_increment = abs(stop - start) / steps
@@ -86,40 +93,42 @@ def format_murmur(i):
 def format_md5(i):
     return "%039d" % i
 
-def repair_keyspace(keyspace, steps=100, verbose=True):
+def repair_keyspace(keyspace, start_steps=100, verbose=True):
     success, ring_tokens, error = get_ring_tokens()
     if not success:
         print "Error fetching ring tokens"
         print error
         return False
 
-    success, host_token, error = get_host_token()
+    success, host_token_list, error = get_host_tokens()
     if not success:
         print "Error fetching host token"
         print error
         return False
 
-    range_termination = get_range_termination(host_token, ring_tokens)
-    formatter = format_murmur if is_murmur_ring(ring_tokens) else format_md5
-
-    if verbose:
-        print "repair over range (%s, %s] with %s steps for keyspace %s" % (formatter(host_token), formatter(range_termination), steps, keyspace)
-
-    for start, end in get_sub_range_generator(host_token, range_termination, steps):
-        start = formatter(start)
-        end = formatter(end)
+    for host_token in host_token_list:
+        steps = start_steps
+        range_termination = get_range_termination(host_token, ring_tokens)
+        formatter = format_murmur if is_murmur_ring(ring_tokens) else format_md5
 
         if verbose:
-            print "step %04d repairing range (%s, %s] for keyspace %s ... " % (steps, start, end, keyspace),
-        success, cmd, stdout, stderr = repair_range(keyspace, start, end)
-        if not success:
-            print "FAILED"
-            print cmd
-            print stderr
-            return False
-        if verbose:
-            print "SUCCESS"
-        steps -= 1
+            print "repair over range (%s, %s] with %s steps for keyspace %s" % (formatter(host_token), formatter(range_termination), steps, keyspace)
+
+        for start, end in get_sub_range_generator(host_token, range_termination, steps):
+            start = formatter(start)
+            end = formatter(end)
+
+            if verbose:
+                print "step %04d repairing range (%s, %s] for keyspace %s ... " % (steps, start, end, keyspace),
+            success, cmd, stdout, stderr = repair_range(keyspace, start, end)
+            if not success:
+                print "FAILED"
+                print cmd
+                print stderr
+                return False
+            if verbose:
+                print "SUCCESS"
+            steps -= 1
 
     return True
 
