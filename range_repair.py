@@ -179,7 +179,7 @@ def repair_keyspace(keyspace, start_steps=100):
                 logging.error("FAILED: {0}".format(cmd))
                 logging.error(stderr)
                 return False
-            logging.debug("SUCCESS")
+            logging.debug("step %04d complete" % (steps))
             steps -= 1
 
     return True
