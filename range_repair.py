@@ -52,7 +52,7 @@ def get_ring_tokens():
 
 def get_host_tokens():
     success, return_code, _, stdout, stderr = run_command("nodetool", "info", "-T")
-    if not success or stdout.find("Token") == 0:
+    if not success or stdout.find("Token") == -1:
         print stdout
         return False, [], stderr
     token_list = []
@@ -71,7 +71,7 @@ def get_range_termination(token, ring):
             return i
     # token is the largest value in the ring.  Since the rings wrap around,
     # return the first value.
-    return ring[0]              
+    return ring[0]
 
 def get_sub_range_generator(start, stop, steps=100):
     step_increment = abs(stop - start) / steps
