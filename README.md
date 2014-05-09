@@ -17,9 +17,6 @@ For clusters that have a large amount of data per node the repair process could 
 ### How the script works
 The script works by figuring out the primary range for the node that it's being executed on, and instead of running repair on the entire range, run the repair on only a smaller sub-range. When a repair is initiated on a sub-range Cassandra constructs a merkle tree only for the range specified, which in turn divides the much smaller range into 15 segments. If there is disagreement in any of the hash values then a much smaller portion of data needs to be transferred which lessens load on the system.
 
-### The Future
-The functionality provided in this script should be integrated into [DataStax OpsCenter](http://www.datastax.com/what-we-offer/products-services/datastax-opscenter) version 3.2.2. The automation and scheduling provided by OpsCenter is superior to that of this script, this script should only be considered a stopgap until the OpsCenter release is available.
-
 ### Options
 
 ```
@@ -31,24 +28,20 @@ Options:
                         keyspace to repair
   -s STEPS, --steps=STEPS
                         number of discrete ranges
-  -q, --quiet           don't print status messages to stdout
 ```
 
 ### Sample
 
 ```
-⇒ ./range_repair.py -k demo
-repair over range (-9223372036854775808, 09223372036854775808] with 100 steps for keyspace demo
-step 0100 repairing range (-9223372036854775808, -9038904596117680292] for keyspace demo ...  SUCCESS
-step 0099 repairing range (-9038904596117680292, -8854437155380584776] for keyspace demo ...  SUCCESS
-step 0098 repairing range (-8854437155380584776, -8669969714643489260] for keyspace demo ...  SUCCESS
-step 0097 repairing range (-8669969714643489260, -8485502273906393744] for keyspace demo ...  SUCCESS
-step 0096 repairing range (-8485502273906393744, -8301034833169298228] for keyspace demo ...  SUCCESS
-step 0095 repairing range (-8301034833169298228, -8116567392432202712] for keyspace demo ...  SUCCESS
-step 0094 repairing range (-8116567392432202712, -7932099951695107196] for keyspace demo ...  SUCCESS
-step 0093 repairing range (-7932099951695107196, -7747632510958011680] for keyspace demo ...  SUCCESS
-step 0092 repairing range (-7747632510958011680, -7563165070220916164] for keyspace demo ...  SUCCESS
-step 0091 repairing range (-7563165070220916164, -7378697629483820648] for keyspace demo ...  SUCCESS
+$ LOG_LEVEL="DEBUG" ./range_repair.py -k demo_keyspace
+INFO       2014-05-09 17:31:33,503    get_ring_tokens                 66  : running nodetool ring, this will take a little bit of time
+DEBUG      2014-05-09 17:31:39,057    get_ring_tokens                 72  : ring tokens found, creating ring token list...
+DEBUG      2014-05-09 17:31:40,207    get_host_tokens                 86  : host tokens found, creating host token list...
+DEBUG      2014-05-09 17:31:40,208    repair_keyspace                 170 : repair over range (-2974082934175371230, -2971948823734978979] with 100 steps for keyspace demo_keyspace
+DEBUG      2014-05-09 17:31:40,208    repair_keyspace                 176 : step 0100 repairing range (-2974082934175371230, -2974061593070967308] for keyspace demo_keyspace ...
+DEBUG      2014-05-09 17:32:47,508    repair_keyspace                 182 : SUCCESS
+DEBUG      2014-05-09 17:32:47,509    repair_keyspace                 176 : step 0099 repairing range (-2974061593070967308, -2974040251966563386] for keyspace demo_keyspace ...
+DEBUG      2014-05-09 17:33:54,904    repair_keyspace                 182 : SUCCESS
 ...
 ```
 
@@ -56,5 +49,7 @@ step 0091 repairing range (-7563165070220916164, -7378697629483820648] for keysp
 -   Python 2.6
 -   Cassandra ```nodetool``` must exist in the ```PATH```
 
-### Limitations
--   Does not work with vnodes
+### History
+- Originally by [Matt Stump](https://github.com/mstump)
+- Converted to work with vnodes by [Brian Gallew](https://github.com/BrianGallew)
+- Additional functionality by [Eric Lubow](http://github.com/elubow)
