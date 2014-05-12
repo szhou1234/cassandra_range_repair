@@ -109,12 +109,18 @@ def get_sub_range_generator(start, stop, steps=100):
     :param start: beginning token in the range
     :param stop: ending token in the range
     :param step: number of sub-ranges to create
+
+    There is special-case handling for when there are more steps than there
+    are keys in the range: just return the start and stop values.
     """
-    step_increment = abs(stop - start) / steps
-    for i in lrange(start + step_increment, stop + 1, step_increment):
-        yield start, i
-        start = i
-    if start < stop:
+    if start+steps+1 < stop:
+        step_increment = abs(stop - start) / steps
+        for i in lrange(start + step_increment, stop + 1, step_increment):
+            yield start, i
+            start = i
+        if start < stop:
+            yield start, stop
+    else:
         yield start, stop
 
 def repair_range(keyspace, start, end):
