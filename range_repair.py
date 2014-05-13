@@ -12,7 +12,7 @@ This script will allow for smaller repairs of Cassandra ranges.
 # print repr(get_ring_tokens())
 # print repr(get_host_token())
 # print repr(get_range_termination(host_token, ring_tokens))
-# print repr(get_sub_range_generator(host_token, range_termination, steps).next())from optparse import OptionParser
+# print repr(get_sub_range_generator(host_token, range_termination, steps).next())
 #################################################
 """
 from optparse import OptionParser
@@ -182,7 +182,7 @@ def repair(keyspace, columnfamily, host, start_steps=100):
         formatter = format_murmur if is_murmur_ring(ring_tokens) else format_md5
 
         logging.info(
-            "[{count}/{total}] repair over range ({token}, {termination}) with {steps} steps for keyspace {keyspace}".format(
+            "[{count}/{total}] repairing range ({token}, {termination}) in {steps} steps for keyspace {keyspace}".format(
                 count=token_num + 1,
                 total=total_tokens,
                 token=formatter(host_token), 
