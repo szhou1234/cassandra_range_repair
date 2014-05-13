@@ -42,8 +42,7 @@ def lrange(num1, num2=None, step=1):
         num1 += step
 
 def run_command(command, *args):
-    """take the created command and actually run it on the command
-    line capturing the output
+    """Execute a shell command and return the output
     """
     cmd = " ".join([command] + list(args))
     proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -72,12 +71,16 @@ def get_ring_tokens():
     logging.debug("ring tokens found, creating ring token list...")
     for line in stdout.split("\n")[6:]:
         segments = line.split()
-        if len(segments) == 8:
+        # Filter tokens from joining nodes
+        if (len(segments) == 8) and (segments[3] != "Joining"):
             tokens.append(long(segments[-1]))
 
     return True, sorted(tokens), None
 
-def get_host_tokens(host):
+def get_host_tokens(host=None):
+    """Gets the tokens ranges for the target host
+    :param host: (optional) hostname
+    """
     cmd = ["nodetool"]
     if host:
         cmd.append("-h {host}".format(host=host))
@@ -97,6 +100,9 @@ def get_host_tokens(host):
 
 def get_range_termination(token, ring):
     """get the last/largest token in the ring
+    :param token: Token to start from
+    :param ring: All of the tokens allocated in the ring
+    :returns: The token that falls immediately after the argument token
     """
     for i in ring:
         if token < i:
@@ -109,7 +115,7 @@ def get_sub_range_generator(start, stop, steps=100):
     """Generate $step subranges between $start and $stop
     :param start: beginning token in the range
     :param stop: ending token in the range
-    :param step: number of sub-ranges to create
+    :param steps: number of sub-ranges to create
 
     There is special-case handling for when there are more steps than there
     are keys in the range: just return the start and stop values.
@@ -124,10 +130,11 @@ def get_sub_range_generator(start, stop, steps=100):
     else:
         yield start, stop
 
-def repair_range(host, keyspace, columnfamily, start, end):
+def repair_range(keyspace, start, end, columnfamily=None, host=None):
     """Repair a keyspace/columnfamily between a given token range with nodetool
+    :param host: (optional) Hostname to pass to nodetool
     :param keyspace: Cassandra keyspace to repair
-    :param columnfamily: Cassandra Columnfamily to repair
+    :param columnfamily: (optional) Cassandra Columnfamily to repair
     :param start: Beginning token in the range to repair
     :param end: Ending token in the range to repair
     """
@@ -150,20 +157,21 @@ def setup_logging():
 
 def format_murmur(num):
     """Format a number for Murmur3
-    :param integer: Murmr3 number to be formatted
+    :param num: Murmr3 number to be formatted
     """
     return "{0:020d}".format(num)
 
 def format_md5(num):
     """Format a number for RandomPartitioner
-    :param integer: RandomPartitioner number to be formatted
+    :param num: RandomPartitioner number to be formatted
     """
     return "{0:039d}".format(num)
 
-def repair(keyspace, columnfamily, host, start_steps=100):
+def repair(keyspace, columnfamily=None, host=None, start_steps=100):
     """Repair a keyspace/columnfamily by breaking each token range into $start_steps ranges
-    :param keyspace: cassandra keyspace to repair
-    :param start_steps: break range to repair in to $start_steps (default:100)
+    :param keyspace: Cassandra keyspace to repair
+    :param columnfamily: Cassandra columnfamily to repair
+    :param start_steps: Number of sub-ranges to split primary range in to
     """
     success, ring_tokens, error = get_ring_tokens()
     if not success:
@@ -201,7 +209,13 @@ def repair(keyspace, columnfamily, host, start_steps=100):
                     end=end,
                     keyspace=keyspace))
 
-            success, cmd, stdout, stderr = repair_range(host, keyspace, columnfamily, start, end)
+            success, cmd, stdout, stderr = repair_range(
+                host=host, 
+                keyspace=keyspace, 
+                columnfamily=columnfamily, 
+                start=start, 
+                end=end)
+
             if not success:
                 logging.error("FAILED: {0}".format(cmd))
                 logging.error(stderr)
@@ -212,7 +226,7 @@ def repair(keyspace, columnfamily, host, start_steps=100):
     return True
 
 def main():
-    """Check arguments and kick off repair
+    """Validate arguments and initiate repair
     """
     parser = OptionParser(add_help_option=False)
     parser.add_option("-k", "--keyspace", dest="keyspace",
@@ -234,7 +248,13 @@ def main():
         sys.exit(1)
 
     setup_logging()
-    if repair(options.keyspace, options.cf, options.host, options.steps):
+    repair_status = repair(
+        keyspace=options.keyspace,
+        columnfamily=options.cf,
+        host=options.host,
+        start_steps=options.steps)
+
+    if repair_staus:
         sys.exit(0)
 
     sys.exit(2)
