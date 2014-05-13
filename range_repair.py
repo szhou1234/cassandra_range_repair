@@ -58,12 +58,16 @@ def is_murmur_ring(ring):
             return True
     return False
 
-def get_ring_tokens():
-    """gets the token information for the ring
+def get_ring_tokens(host=None):
+    """Gets the token information for the ring
     """
     tokens = []
     logging.info("running nodetool ring, this will take a little bit of time")
-    success, return_code, _, stdout, stderr = run_command("nodetool", "ring")
+    cmd = ["nodetool"]
+    if host:
+        cmd.append("-h {host}".format(host=host))
+    cmd.append("ring")
+    success, return_code, _, stdout, stderr = run_command(" ".join(cmd))
 
     if not success:
         return False, [], stderr
@@ -173,7 +177,7 @@ def repair(keyspace, columnfamily=None, host=None, start_steps=100):
     :param columnfamily: Cassandra columnfamily to repair
     :param start_steps: Number of sub-ranges to split primary range in to
     """
-    success, ring_tokens, error = get_ring_tokens()
+    success, ring_tokens, error = get_ring_tokens(host)
     if not success:
         logging.error("Error fetching ring tokens: {0}".format(error))
         return False
