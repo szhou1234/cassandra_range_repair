@@ -23,11 +23,12 @@ The script works by figuring out the primary range for the node that it's being 
 Usage: range_repair.py [options]
 
 Options:
+  -h, --help            show this help message and exit
   -k KEYSPACE, --keyspace=KEYSPACE
                         Keyspace to repair
   -c COLUMNFAMILY, --columnfamily=COLUMNFAMILY
                         ColumnFamily to repair
-  -h HOST, --host=HOST  Hostname to repair
+  -H HOST, --host=HOST  Hostname to repair
   -s STEPS, --steps=STEPS
                         Number of discrete ranges
 ```

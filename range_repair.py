@@ -233,14 +233,14 @@ def repair(keyspace, columnfamily=None, host=None, start_steps=100):
 def main():
     """Validate arguments and initiate repair
     """
-    parser = OptionParser(add_help_option=False)
+    parser = OptionParser()
     parser.add_option("-k", "--keyspace", dest="keyspace",
                       help="Keyspace to repair", metavar="KEYSPACE")
 
     parser.add_option("-c", "--columnfamily", dest="cf", default=None,
                       help="ColumnFamily to repair", metavar="COLUMNFAMILY")
 
-    parser.add_option("-h", "--host", dest="host",
+    parser.add_option("-H", "--host", dest="host",
                       help="Hostname to repair", metavar="HOST")
 
     parser.add_option("-s", "--steps", dest="steps", type="int", default=100,
