@@ -258,7 +258,7 @@ def main():
         host=options.host,
         start_steps=options.steps)
 
-    if repair_staus:
+    if repair_status:
         sys.exit(0)
 
     sys.exit(2)
