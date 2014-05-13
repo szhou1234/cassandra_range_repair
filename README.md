@@ -25,9 +25,12 @@ Usage: range_repair.py [options]
 Options:
   -h, --help            show this help message and exit
   -k KEYSPACE, --keyspace=KEYSPACE
-                        keyspace to repair
+                        Keyspace to repair
+  -c COLUMNFAMILY, --columnfamily=COLUMNFAMILY
+                        ColumnFamily to repair
+  -H HOST, --host=HOST  Hostname to repair
   -s STEPS, --steps=STEPS
-                        number of discrete ranges
+                        Number of discrete ranges
 ```
 
 ### Sample
