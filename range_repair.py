@@ -136,11 +136,11 @@ def get_sub_range_generator(start, stop, steps=100):
 
 def repair_range(keyspace, start, end, columnfamily=None, host=None):
     """Repair a keyspace/columnfamily between a given token range with nodetool
-    :param host: (optional) Hostname to pass to nodetool
     :param keyspace: Cassandra keyspace to repair
-    :param columnfamily: (optional) Cassandra Columnfamily to repair
     :param start: Beginning token in the range to repair
     :param end: Ending token in the range to repair
+    :param columnfamily: (optional) Cassandra Columnfamily to repair
+    :param host: (optional) Hostname to pass to nodetool
     """
     cmd = ["nodetool"]
     if host:
@@ -175,6 +175,7 @@ def repair(keyspace, columnfamily=None, host=None, start_steps=100):
     """Repair a keyspace/columnfamily by breaking each token range into $start_steps ranges
     :param keyspace: Cassandra keyspace to repair
     :param columnfamily: Cassandra columnfamily to repair
+    :param host: (optional) Hostname to pass to nodetool 
     :param start_steps: Number of sub-ranges to split primary range in to
     """
     success, ring_tokens, error = get_ring_tokens(host)
