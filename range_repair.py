@@ -77,18 +77,20 @@ def get_ring_tokens():
 
     return True, sorted(tokens), None
 
-def get_host_tokens():
-    success, return_code, _, stdout, stderr = run_command("nodetool", "info", "-T")
+def get_host_tokens(host):
+    cmd = ["nodetool"]
+    if host:
+        cmd.append("-h {host}".format(host=host))
+    cmd.append("info -T")
+    success, return_code, _, stdout, stderr = run_command(" ".join(cmd))
     if not success or stdout.find("Token") == -1:
         logging.error(stdout)
         return False, [], stderr
     token_list = []
     logging.debug("host tokens found, creating host token list...")
     for line in stdout.split('\n'):
-        if not 'Token' == line[:5]: continue
+        if not line.startswith("Token"): continue
         parts = line.split()
-        if not len(parts) == 3: continue
-        if not parts[1] == ':': continue
         token_list.append(long(parts[2]))
 
     return True, token_list, None
@@ -104,8 +106,7 @@ def get_range_termination(token, ring):
     return ring[0]
 
 def get_sub_range_generator(start, stop, steps=100):
-    """using the full range for the $start/$stop token set,
-    create a generator of $step subranges
+    """Generate $step subranges between $start and $stop
     :param start: beginning token in the range
     :param stop: ending token in the range
     :param step: number of sub-ranges to create
@@ -123,15 +124,21 @@ def get_sub_range_generator(start, stop, steps=100):
     else:
         yield start, stop
 
-def repair_range(keyspace, start, end):
-    """repair the range just for that keyspace using the manual repair
-    piece of nodetool
-    :param keyspace: cassandra keyspace to repair
-    :param start: beginning token in the range to repair
-    :param end: ending token in the range to repair
+def repair_range(host, keyspace, columnfamily, start, end):
+    """Repair a keyspace/columnfamily between a given token range with nodetool
+    :param keyspace: Cassandra keyspace to repair
+    :param columnfamily: Cassandra Columnfamily to repair
+    :param start: Beginning token in the range to repair
+    :param end: Ending token in the range to repair
     """
-    success, return_code, cmd, stdout, stderr = \
-        run_command("nodetool", "repair %s -local -snapshot -pr -st %s -et %s" % (keyspace, start, end))
+    cmd = ["nodetool"]
+    if host:
+        cmd.append("-h {host}".format(host=host))
+    cmd.append("repair {keyspace}".format(keyspace=keyspace))
+    if columnfamily:
+        cmd.append(columnfamily)
+    cmd.append("-local -snapshot -pr -st {start} -et {end}".format(start=start, end=end))
+    success, return_code, cmd, stdout, stderr = run_command(" ".join(cmd))
     return success, cmd, stdout, stderr
 
 def setup_logging():
@@ -142,19 +149,19 @@ def setup_logging():
     logging.basicConfig(level=logging.getLevelName(log_level), format=log_format)
 
 def format_murmur(i):
-    """format the integer for Murmur3
+    """Format an integer for Murmur3
     :param i: Murmr3 integer to be formatted
     """
     return "%020d" % i
 
 def format_md5(i):
-    """format the integer for RandomPartitioner
+    """Format an integer for RandomPartitioner
     :param i: RandomPartitioner integer to be formatted
     """
     return "%039d" % i
 
-def repair_keyspace(keyspace, start_steps=100):
-    """repair the keyspace on the node using a total of $start_steps ranges
+def repair(keyspace, columnfamily, host, start_steps=100):
+    """Repair a keyspace/columnfamily by breaking each token range into $start_steps ranges
     :param keyspace: cassandra keyspace to repair
     :param start_steps: break range to repair in to $start_steps (default:100)
     """
@@ -163,7 +170,7 @@ def repair_keyspace(keyspace, start_steps=100):
         logging.error("Error fetching ring tokens: {0}".format(error))
         return False
 
-    success, host_token_list, error = get_host_tokens()
+    success, host_token_list, error = get_host_tokens(host)
     if not success:
         logging.error("Error fetching host token: {0}".format(error))
         return False
@@ -180,7 +187,7 @@ def repair_keyspace(keyspace, start_steps=100):
             end = formatter(end)
 
             logging.debug("step %04d repairing range (%s, %s] for keyspace %s ... " % (steps, start, end, keyspace))
-            success, cmd, stdout, stderr = repair_range(keyspace, start, end)
+            success, cmd, stdout, stderr = repair_range(host, keyspace, columnfamily, start, end)
             if not success:
                 logging.error("FAILED: {0}".format(cmd))
                 logging.error(stderr)
@@ -191,14 +198,20 @@ def repair_keyspace(keyspace, start_steps=100):
     return True
 
 def main():
-    """do work
+    """Check arguments and kick off repair
     """
-    parser = OptionParser()
+    parser = OptionParser(add_help_option=False)
     parser.add_option("-k", "--keyspace", dest="keyspace",
-                      help="keyspace to repair", metavar="KEYSPACE")
+                      help="Keyspace to repair", metavar="KEYSPACE")
+
+    parser.add_option("-c", "--columnfamily", dest="cf", default=None,
+                      help="ColumnFamily to repair", metavar="COLUMNFAMILY")
+
+    parser.add_option("-h", "--host", dest="host",
+                      help="Hostname to repair", metavar="HOST")
 
     parser.add_option("-s", "--steps", dest="steps", type="int", default=100,
-                      help="number of discrete ranges", metavar="STEPS")
+                      help="Number of discrete ranges", metavar="STEPS")
 
     (options, args) = parser.parse_args()
 
@@ -207,7 +220,7 @@ def main():
         sys.exit(1)
 
     setup_logging()
-    if repair_keyspace(options.keyspace, options.steps):
+    if repair(options.keyspace, options.cf, options.host, options.steps):
         sys.exit(0)
 
     sys.exit(2)
