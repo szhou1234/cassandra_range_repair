@@ -88,7 +88,7 @@ def get_host_tokens(host):
         return False, [], stderr
     token_list = []
     logging.debug("host tokens found, creating host token list...")
-    for line in stdout.split('\n'):
+    for line in stdout.split("\n"):
         if not line.startswith("Token"): continue
         parts = line.split()
         token_list.append(long(parts[2]))
@@ -144,21 +144,21 @@ def repair_range(host, keyspace, columnfamily, start, end):
 def setup_logging():
     """Sets up logging in a syslog format by log level
     """
-    log_format = "%(levelname) -10s %(asctime)s    %(funcName) -30s %(lineno) -5d: %(message)s"
-    log_level = os.getenv('LOG_LEVEL', 'INFO')
+    log_format = "%(levelname) -10s %(asctime)s %(funcName) -20s line:%(lineno) -5d: %(message)s"
+    log_level = os.getenv("LOG_LEVEL", "INFO")
     logging.basicConfig(level=logging.getLevelName(log_level), format=log_format)
 
-def format_murmur(i):
-    """Format an integer for Murmur3
-    :param i: Murmr3 integer to be formatted
+def format_murmur(num):
+    """Format a number for Murmur3
+    :param integer: Murmr3 number to be formatted
     """
-    return "%020d" % i
+    return "{0:020d}".format(num)
 
-def format_md5(i):
-    """Format an integer for RandomPartitioner
-    :param i: RandomPartitioner integer to be formatted
+def format_md5(num):
+    """Format a number for RandomPartitioner
+    :param integer: RandomPartitioner number to be formatted
     """
-    return "%039d" % i
+    return "{0:039d}".format(num)
 
 def repair(keyspace, columnfamily, host, start_steps=100):
     """Repair a keyspace/columnfamily by breaking each token range into $start_steps ranges
@@ -175,24 +175,38 @@ def repair(keyspace, columnfamily, host, start_steps=100):
         logging.error("Error fetching host token: {0}".format(error))
         return False
 
-    for host_token in host_token_list:
+    total_tokens = len(host_token_list)
+    for token_num, host_token in enumerate(host_token_list):
         steps = start_steps
         range_termination = get_range_termination(host_token, ring_tokens)
         formatter = format_murmur if is_murmur_ring(ring_tokens) else format_md5
 
-        logging.debug("repair over range (%s, %s] with %s steps for keyspace %s" % (formatter(host_token), formatter(range_termination), steps, keyspace))
+        logging.info(
+            "[{count}/{total}] repair over range ({token}, {termination}) with {steps} steps for keyspace {keyspace}".format(
+                count=token_num + 1,
+                total=total_tokens,
+                token=formatter(host_token), 
+                termination=formatter(range_termination), 
+                steps=steps, 
+                keyspace=keyspace))
 
         for start, end in get_sub_range_generator(host_token, range_termination, steps):
             start = formatter(start)
             end = formatter(end)
 
-            logging.debug("step %04d repairing range (%s, %s] for keyspace %s ... " % (steps, start, end, keyspace))
+            logging.debug(
+                "step {steps:04d} repairing range ({start}, {end}) for keyspace {keyspace}".format(
+                    steps=steps,
+                    start=start,
+                    end=end,
+                    keyspace=keyspace))
+
             success, cmd, stdout, stderr = repair_range(host, keyspace, columnfamily, start, end)
             if not success:
                 logging.error("FAILED: {0}".format(cmd))
                 logging.error(stderr)
                 return False
-            logging.debug("step %04d complete" % (steps))
+            logging.debug("step {steps:04d} complete".format(steps=steps))
             steps -= 1
 
     return True
@@ -225,5 +239,5 @@ def main():
 
     sys.exit(2)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
