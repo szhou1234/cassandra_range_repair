@@ -19,9 +19,7 @@ from optparse import OptionParser
 
 import logging
 import operator
-import optparse
 import os
-import re
 import subprocess
 import sys
 
@@ -152,12 +150,17 @@ def repair_range(keyspace, start, end, columnfamily=None, host=None):
     success, return_code, cmd, stdout, stderr = run_command(" ".join(cmd))
     return success, cmd, stdout, stderr
 
-def setup_logging():
+def setup_logging(option_group):
     """Sets up logging in a syslog format by log level
+    :param option_group: options as returned by the OptionParser
     """
     log_format = "%(levelname) -10s %(asctime)s %(funcName) -20s line:%(lineno) -5d: %(message)s"
-    log_level = os.getenv("LOG_LEVEL", "INFO")
-    logging.basicConfig(level=logging.getLevelName(log_level), format=log_format)
+    if option_group.debug:
+        logging.basicConfig(level=logging.DEBUG, format=log_format)
+    elif option_group.verbose:
+        logging.basicConfig(level=logging.INFO, format=log_format)
+    else:
+        logging.basicConfig(level=logging.WARNING, format=log_format)
 
 def format_murmur(num):
     """Format a number for Murmur3
@@ -235,7 +238,7 @@ def main():
     """
     parser = OptionParser()
     parser.add_option("-k", "--keyspace", dest="keyspace",
-                      help="Keyspace to repair", metavar="KEYSPACE")
+                      help="Keyspace to repair (REQUIRED)", metavar="KEYSPACE")
 
     parser.add_option("-c", "--columnfamily", dest="cf", default=None,
                       help="ColumnFamily to repair", metavar="COLUMNFAMILY")
@@ -246,13 +249,19 @@ def main():
     parser.add_option("-s", "--steps", dest="steps", type="int", default=100,
                       help="Number of discrete ranges", metavar="STEPS")
 
+    parser.add_option("-v", "--verbose", dest="verbose", action='store_true',
+                      default=False, help="Verbose output")
+
+    parser.add_option("-d", "--debug", dest="debug", action='store_true',
+                      default=False, help="Debugging output")
+
     (options, args) = parser.parse_args()
 
     if not options.keyspace:
         parser.print_help()
         sys.exit(1)
 
-    setup_logging()
+    setup_logging(options)
     repair_status = repair(
         keyspace=options.keyspace,
         columnfamily=options.cf,
