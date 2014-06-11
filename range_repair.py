@@ -19,7 +19,6 @@ from optparse import OptionParser
 
 import logging
 import operator
-import os
 import subprocess
 import sys
 
