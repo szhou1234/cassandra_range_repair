@@ -22,13 +22,9 @@ import sys
 import multiprocessing
 import platform
 
-MURMUR3_MIN = -(2**63)
-MURMUR3_MAX = 2**63
-MD5_MAX = (2**127) -1
-
 class Token_Container:
     RANGE_MIN = -(2**63)
-    RANGE_MAX = 2**63
+    RANGE_MAX = (2**63)-1
     FORMAT_TEMPLATE = "{0:020d}"
     def __init__(self, options):
         '''Initialize the Token Container by getting the host and ring tokens and
