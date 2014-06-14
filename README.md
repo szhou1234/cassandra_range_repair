@@ -25,12 +25,20 @@ Usage: range_repair.py [options]
 Options:
   -h, --help            show this help message and exit
   -k KEYSPACE, --keyspace=KEYSPACE
-                        Keyspace to repair
+                        Keyspace to repair (REQUIRED)
   -c COLUMNFAMILY, --columnfamily=COLUMNFAMILY
-                        ColumnFamily to repair
-  -H HOST, --host=HOST  Hostname to repair
+                        ColumnFamily to repair, can appear multiple times
+  -H HOST, --host=HOST  Hostname to repair [default: $HOSTNAME]
   -s STEPS, --steps=STEPS
-                        Number of discrete ranges
+                        Number of discrete ranges [default: 100]
+  -n NODETOOL, --nodetool=NODETOOL
+                        Path to nodetool [default: nodetool]
+  -w WORKERS, --workers=WORKERS
+                        Number of workers to use for parallelism [default: 1]
+  -l, --local           Restrict repair to the local DC
+  -S, --snapshot        Use snapshots (pre-2.x only)
+  -v, --verbose         Verbose output
+  -d, --debug           Debugging output
 ```
 
 ### Sample
