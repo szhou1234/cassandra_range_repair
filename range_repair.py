@@ -176,10 +176,11 @@ def repair_range(options, start, end):
     :param end: Ending token in the range to repair (formatted string)
     """
     cmd = [options.nodetool, "-h", options.host,
-           "repair", options.keyspace, options.columnfamily,
-           options.local, options.snapshot,
-           "-pr", "-st", start, "-et", end
-    ]
+           "repair", options.keyspace]
+    cmd.extend(options.columnfamily)
+    cmd.extend([options.local, options.snapshot,
+                "-pr", "-st", start, "-et", end])
+
     success, cmd, stdout, stderr = run_command(" ".join(cmd))
     return success, cmd, stdout, stderr
 
@@ -198,7 +199,6 @@ def setup_logging(option_group):
 def repair(options):
     """Repair a keyspace/columnfamily by breaking each token range into $start_steps ranges
     :param options.keyspace: Cassandra keyspace to repair
-    :param options.columnfamily: Cassandra columnfamily to repair
     :param options.host: (optional) Hostname to pass to nodetool 
     :param options.steps: Number of sub-ranges to split primary range in to
     :param options.workers: Number of workers to use
