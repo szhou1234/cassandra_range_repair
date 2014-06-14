@@ -210,7 +210,7 @@ def repair(options):
 
     worker_pool = multiprocessing.Pool(options.workers)
     
-    for token_num, host_token in enumerate(tokens.host_tokens[-1:]):
+    for token_num, host_token in enumerate(tokens.host_tokens):
         steps = options.steps
         range_termination = tokens.get_range_termination(host_token)
         
