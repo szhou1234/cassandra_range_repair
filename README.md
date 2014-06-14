@@ -56,3 +56,4 @@ DEBUG      2014-05-09 17:33:54,904    repair_keyspace                 182 : SUCC
 - Originally by [Matt Stump](https://github.com/mstump)
 - Converted to work with vnodes by [Brian Gallew](https://github.com/BrianGallew)
 - Additional functionality by [Eric Lubow](http://github.com/elubow)
+- Support for multiprocessing performed by [Brian Gallew](https://github.com/BrianGallew) with credit to [M. Jaszczyk](https://github.com/mjaszczyk)
