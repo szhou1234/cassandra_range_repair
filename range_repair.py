@@ -131,7 +131,7 @@ class Token_Container:
             if start+steps+1 < stop:
                 step_increment = (stop - start) / steps
 
-                for i in xrange(start, stop, step_increment):
+                for i in range(start, stop, step_increment):
                     local_end = i + step_increment
                     if local_end > stop:
                         local_end = stop
@@ -141,17 +141,19 @@ class Token_Container:
             else:
                 yield self.format(start), self.format(stop)
         else:                     # This is the wrap-around case
+            steps -= 1            # Because of the wraparound, the odds are there will be an extra step.
             distance = (self.RANGE_MAX - start) + (stop - self.RANGE_MIN) 
             if distance > steps:
                 step_increment = distance / steps
-                for i in xrange(start, self.RANGE_MAX, step_increment):
+                # Can't use xrange here because the numbers are too large!
+                for i in range(start, self.RANGE_MAX, step_increment):
                     local_end = i + step_increment
                     if local_end > self.RANGE_MAX:
                         local_end = self.RANGE_MAX
                     if i == local_end:
                         break
                     yield self.format(i), self.format(local_end)
-                for i in xrange(self.RANGE_MIN, stop, step_increment):
+                for i in range(self.RANGE_MIN, stop, step_increment):
                     local_end = i + step_increment
                     if local_end > stop:
                         local_end = stop
@@ -165,6 +167,7 @@ def run_command(command, *args):
     """Execute a shell command and return the output
     """
     cmd = " ".join([command] + list(args))
+    logging.debug("run_command: " + cmd)
     proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = proc.communicate()
     return proc.returncode == 0, cmd, stdout, stderr
@@ -207,7 +210,7 @@ def repair(options):
 
     worker_pool = multiprocessing.Pool(options.workers)
     
-    for token_num, host_token in enumerate(tokens.host_tokens):
+    for token_num, host_token in enumerate(tokens.host_tokens[-1:]):
         steps = options.steps
         range_termination = tokens.get_range_termination(host_token)
         
@@ -254,16 +257,16 @@ def main():
                       help="ColumnFamily to repair, can appear multiple times")
 
     parser.add_option("-H", "--host", dest="host", default=platform.node(),
-                      metavar="HOST", help="Hostname to repair")
+                      metavar="HOST", help="Hostname to repair [default: %default]")
 
     parser.add_option("-s", "--steps", dest="steps", type="int", default=100,
-                      metavar="STEPS", help="Number of discrete ranges")
+                      metavar="STEPS", help="Number of discrete ranges [default: %default]")
 
     parser.add_option("-n", "--nodetool", dest="nodetool", default="nodetool",
-                      metavar="NODETOOL", help="Path to nodetool")
+                      metavar="NODETOOL", help="Path to nodetool [default: %default]")
 
     parser.add_option("-w", "--workers", dest="workers", type="int", default=1,
-                      metavar="WORKERS", help="Number of workers to use for parallelism (DANGEROUS)")
+                      metavar="WORKERS", help="Number of workers to use for parallelism [default: %default]")
 
     parser.add_option("-l", "--local", dest="local", default="",
                       action="store_const", const="-local",
