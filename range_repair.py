@@ -62,7 +62,7 @@ class Token_Container:
         """
         logging.info("running nodetool ring, this will take a little bit of time")
         cmd = [self.options.nodetool, "-h", self.options.host, "ring"]
-        success, _, stdout, stderr = run_command(" ".join(cmd))
+        success, _, stdout, stderr = run_command(*cmd)
 
         if not success:
             raise Exception("Died in get_ring_tokens because: " + stderr)
@@ -81,7 +81,7 @@ class Token_Container:
         :returns: None
         """
         cmd = [self.options.nodetool, "-h", self.options.host, "info", "-T"]
-        success, _, stdout, stderr = run_command(" ".join(cmd))
+        success, _, stdout, stderr = run_command(*cmd)
         if not success or stdout.find("Token") == -1:
             logging.error(stdout)
             raise Exception("Died in get_host_tokens because: " + stderr)
@@ -118,10 +118,11 @@ class Token_Container:
         :param start: beginning token in the range
         :param stop: first token of the next range
         :param steps: number of sub-ranges to create
-
+        :returns: string-formatted start value, string-formatted end value, current step number
         There is special-case handling for when there are more steps than there
         are keys in the range: just return the start and stop values.
         """
+        step = 0
         # This first case works for all but the highest-valued token.
         if stop > start:
             if start+steps+1 < stop:
@@ -133,9 +134,11 @@ class Token_Container:
                         local_end = stop
                     if i == local_end:
                         break
-                    yield self.format(i), self.format(local_end)
+                    step += 1
+                    yield self.format(i), self.format(local_end), step
             else:
-                yield self.format(start), self.format(stop)
+                step += 1
+                yield self.format(start), self.format(stop), step
         else:                     # This is the wrap-around case
             steps -= 1            # Because of the wraparound, the odds are there will be an extra step.
             distance = (self.RANGE_MAX - start) + (stop - self.RANGE_MIN) 
@@ -148,40 +151,61 @@ class Token_Container:
                         local_end = self.RANGE_MAX
                     if i == local_end:
                         break
-                    yield self.format(i), self.format(local_end)
+                    step += 1
+                    yield self.format(i), self.format(local_end), step
                 for i in range(self.RANGE_MIN, stop, step_increment):
                     local_end = i + step_increment
                     if local_end > stop:
                         local_end = stop
                     if i == local_end:
                         break
-                    yield self.format(i), self.format(local_end)
+                    step += 1
+                    yield self.format(i), self.format(local_end), step
             else:
-                yield self.format(start), self.format(stop)
+                step += 1
+                yield self.format(start), self.format(stop), step
 
-def run_command(command, *args):
+def run_command(*command):
     """Execute a shell command and return the output
+    :param command: the command to be run and all of the arguments
+    :returns: success_boolean, command_string, stdout, stderr
     """
-    cmd = " ".join([command] + list(args))
+    cmd = " ".join(command)
     logging.debug("run_command: " + cmd)
     proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = proc.communicate()
     return proc.returncode == 0, cmd, stdout, stderr
 
-def repair_range(options, start, end):
+def repair_range(options, start, end, step):
     """Repair a keyspace/columnfamily between a given token range with nodetool
     :param options: OptionParser result
     :param start: Beginning token in the range to repair (formatted string)
     :param end: Ending token in the range to repair (formatted string)
+    :param step: The step we're executing (for logging purposes)
+    :returns: None
     """
+    setup_logging(options)
+    logging.debug(
+        "step {step:04d} repairing range ({start}, {end}) for keyspace {keyspace}".format(
+            step=step,
+            start=start,
+            end=end,
+            keyspace=options.keyspace))
+
     cmd = [options.nodetool, "-h", options.host,
            "repair", options.keyspace]
     cmd.extend(options.columnfamily)
     cmd.extend([options.local, options.snapshot,
                 "-pr", "-st", start, "-et", end])
 
-    success, cmd, stdout, stderr = run_command(" ".join(cmd))
-    return success, cmd, stdout, stderr
+    success, cmd, _, stderr = run_command(*cmd)
+
+    if not success:
+        logging.error("FAILED: {0}".format(cmd))
+        logging.error(stderr)
+        return
+    logging.debug("step {step:04d} complete".format(step=step))
+    return
 
 def setup_logging(option_group):
     """Sets up logging in a syslog format by log level
@@ -207,7 +231,6 @@ def repair(options):
     worker_pool = multiprocessing.Pool(options.workers)
     
     for token_num, host_token in enumerate(tokens.host_tokens):
-        steps = options.steps
         range_termination = tokens.get_range_termination(host_token)
         
         logging.info(
@@ -216,30 +239,14 @@ def repair(options):
                 total=tokens.host_token_count,
                 token=tokens.format(host_token), 
                 termination=tokens.format(range_termination), 
-                steps=steps, 
+                steps=options.steps, 
                 keyspace=options.keyspace))
 
-        for start, end in tokens.sub_range_generator(host_token, range_termination, steps):
-
-            logging.debug(
-                "step {steps:04d} repairing range ({start}, {end}) for keyspace {keyspace}".format(
-                    steps=steps,
-                    start=start,
-                    end=end,
-                    keyspace=options.keyspace))
-
-            success, cmd, _, stderr = repair_range(options,
-                                                   start=start,
-                                                   end=end)
-
-            if not success:
-                logging.error("FAILED: {0}".format(cmd))
-                logging.error(stderr)
-                return False
-            logging.debug("step {steps:04d} complete".format(steps=steps))
-            steps -= 1
-
-    return True
+        results = [worker_pool.apply_async(repair_range, (options, start, end, step))
+                   for start, end, step in tokens.sub_range_generator(host_token, range_termination, options.steps)]
+        for r in results:
+            r.get()
+    return
 
 def main():
     """Validate arguments and initiate repair
@@ -261,6 +268,9 @@ def main():
     parser.add_option("-n", "--nodetool", dest="nodetool", default="nodetool",
                       metavar="NODETOOL", help="Path to nodetool [default: %default]")
 
+    # The module default for workers is actually the CPU count, but we're
+    # going to override it to 1, which matches the old behavior of serial
+    # repairs.
     parser.add_option("-w", "--workers", dest="workers", type="int", default=1,
                       metavar="WORKERS", help="Number of workers to use for parallelism [default: %default]")
 
