@@ -25,7 +25,7 @@ import platform
 class Token_Container:
     RANGE_MIN = -(2**63)
     RANGE_MAX = (2**63)-1
-    FORMAT_TEMPLATE = "{0:020d}"
+    FORMAT_TEMPLATE = "{0:+021d}"
     def __init__(self, options):
         '''Initialize the Token Container by getting the host and ring tokens and
         then confirming the values used for formatting and range
