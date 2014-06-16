@@ -34,12 +34,39 @@ class Token_Container:
         :returns: None
         '''
         self.options = options
+        self.local_nodes = []
         self.host_tokens = []
         self.ring_tokens = []
         self.host_token_count = -1
+        self.get_local_nodes()
         self.get_host_tokens()
         self.get_ring_tokens()
         self.check_for_MD5_tokens()
+        return
+
+    def get_local_nodes(self):
+        '''In a multi-DC environment, it is important to *only* consider tokens on
+        members of the local ring.
+
+        '''
+        if not self.options.datacenter:
+            logging.debug("No datacenter specified, all ring members' tokens will be considered")
+            return
+        logging.debug("Determining local ring members")
+        cmd = [self.options.nodetool, "-h", self.options.host, "gossipinfo"]
+        success, _, stdout, stderr = run_command(*cmd)
+
+        if not success:
+            raise Exception("Died in get_ring_tokens because: " + stderr)
+
+        # This is a really well-specified value.  If the format of the
+        # output of 'nodetool gossipinfo' changes, this will have to be
+        # revisited.
+        search_value = "\n  DC:{datacenter}\n".format(datacenter=self.options.datacenter)
+        for paragraph in stdout.split("/"):
+            if not search_value in paragraph: continue
+            self.local_nodes.append(paragraph.split()[0])
+        logging.info("Local nodes: " + " ".join(self.local_nodes))
         return
         
     def check_for_MD5_tokens(self):
@@ -71,9 +98,16 @@ class Token_Container:
         for line in stdout.split("\n")[6:]:
             segments = line.split()
             # Filter tokens from joining nodes
-            if (len(segments) == 8) and (segments[3] != "Joining"):
-                self.ring_tokens.append(long(segments[-1]))
+            if (len(segments) != 8) or (segments[3] == "Joining"):
+                continue
+            # If a datacenter has been specified, filter nodes that are in
+            # different datacenters.
+            if self.options.datacenter and not segments[0] in self.local_nodes:
+                logging.debug("Discarding node/token %s/%s", segments[0], segments[-1])
+                continue
+            self.ring_tokens.append(long(segments[-1]))
         self.ring_tokens.sort()
+        logging.info("Found {0} tokens".format(len(self.ring_tokens)))
         return
 
     def get_host_tokens(self):
@@ -273,6 +307,9 @@ def main():
     # repairs.
     parser.add_option("-w", "--workers", dest="workers", type="int", default=1,
                       metavar="WORKERS", help="Number of workers to use for parallelism [default: %default]")
+
+    parser.add_option("-D", "--datacenter", dest="datacenter", default=None,
+                      metavar="DATACENTER", help="Identify local datacenter [default: %default]")
 
     parser.add_option("-l", "--local", dest="local", default="",
                       action="store_const", const="-local",

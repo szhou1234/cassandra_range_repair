@@ -17,6 +17,9 @@ For clusters that have a large amount of data per node the repair process could 
 ### How the script works
 The script works by figuring out the primary range for the node that it's being executed on, and instead of running repair on the entire range, run the repair on only a smaller sub-range. When a repair is initiated on a sub-range Cassandra constructs a merkle tree only for the range specified, which in turn divides the much smaller range into 15 segments. If there is disagreement in any of the hash values then a much smaller portion of data needs to be transferred which lessens load on the system.
 
+### Multiple Datacenters
+If you have multiple datacenters in your ring, then you MUST specify the name of the datacenter containing the node you are repairing as part of the command-line options (--datacenter=DCNAME).  Failure to do so will result in only a subset of your data being repaired (approximately data/number-of-datacenters).  This is because nodetool has no way to determine the relevant DC on its own, which in turn means it will use the tokens from every ring member in every datacenter.
+
 ### Options
 
 ```
@@ -35,6 +38,7 @@ Options:
                         Path to nodetool [default: nodetool]
   -w WORKERS, --workers=WORKERS
                         Number of workers to use for parallelism [default: 1]
+  -D DATACENTER, --datacenter=DATACENTER
   -l, --local           Restrict repair to the local DC
   -S, --snapshot        Use snapshots (pre-2.x only)
   -v, --verbose         Verbose output
@@ -65,3 +69,4 @@ DEBUG      2014-05-09 17:33:54,904    repair_keyspace                 182 : SUCC
 - Converted to work with vnodes by [Brian Gallew](https://github.com/BrianGallew)
 - Additional functionality by [Eric Lubow](http://github.com/elubow)
 - Support for multiprocessing performed by [Brian Gallew](https://github.com/BrianGallew) with credit to [M. Jaszczyk](https://github.com/mjaszczyk)
+- Multiple datacenter support by [Brian Gallew](https://github.com/BrianGallew)
