@@ -8,146 +8,204 @@ This script will allow for smaller repairs of Cassandra ranges.
 # range_termination = get_range_termination(host_token, ring_tokens)
 # steps = 100
 
-# print repr(is_murmur_ring(ring_tokens))
 # print repr(get_ring_tokens())
 # print repr(get_host_token())
 # print repr(get_range_termination(host_token, ring_tokens))
-# print repr(get_sub_range_generator(host_token, range_termination, steps).next())
+# print repr(sub_range_generator(host_token, range_termination, steps).next())
 #################################################
 """
 from optparse import OptionParser
 
 import logging
-import operator
 import subprocess
 import sys
+import multiprocessing
+import platform
 
-def lrange(num1, num2=None, step=1):
-    op = operator.__le__
+class Token_Container:
+    RANGE_MIN = -(2**63)
+    RANGE_MAX = (2**63)-1
+    FORMAT_TEMPLATE = "{0:020d}"
+    def __init__(self, options):
+        '''Initialize the Token Container by getting the host and ring tokens and
+        then confirming the values used for formatting and range
+        management.
+        :param options: OptionParser result
+        :returns: None
+        '''
+        self.options = options
+        self.host_tokens = []
+        self.ring_tokens = []
+        self.host_token_count = -1
+        self.get_host_tokens()
+        self.get_ring_tokens()
+        self.check_for_MD5_tokens()
+        return
+        
+    def check_for_MD5_tokens(self):
+        """By default, the Token_Container assumes that the Murmur3 partitioner is
+        in use.  If that's true, then the first token in the ring should
+        have a negative value as long as the cluster has at least 3
+        (v)nodes.  If the first token is not negative, switch the class
+        constants for the values associated with Random paritioner.
+        :returns: None
+        """
+        if not self.ring_tokens[0] < 0:
+            self.FORMAT_TEMPLATE = "{0:039d}"
+            self.RANGE_MIN = 0
+            self.RANGE_MAX = (2**127) - 1
+        return
+        
+    def get_ring_tokens(self):
+        """Gets the token information for the ring
+        :returns: None
+        """
+        logging.info("running nodetool ring, this will take a little bit of time")
+        cmd = [self.options.nodetool, "-h", self.options.host, "ring"]
+        success, _, stdout, stderr = run_command(*cmd)
 
-    if num2 is None:
-        num1, num2 = 0, num1
-    if num2 < num1:
-        if step > 0:
-            num1 = num2
-        op = operator.__gt__
-    elif step < 0:
-        num1 = num2
+        if not success:
+            raise Exception("Died in get_ring_tokens because: " + stderr)
 
-    while op(num1, num2):
-        yield num1
-        num1 += step
+        logging.debug("ring tokens found, creating ring token list...")
+        for line in stdout.split("\n")[6:]:
+            segments = line.split()
+            # Filter tokens from joining nodes
+            if (len(segments) == 8) and (segments[3] != "Joining"):
+                self.ring_tokens.append(long(segments[-1]))
+        self.ring_tokens.sort()
+        return
 
-def run_command(command, *args):
+    def get_host_tokens(self):
+        """Gets the tokens ranges for the target host
+        :returns: None
+        """
+        cmd = [self.options.nodetool, "-h", self.options.host, "info", "-T"]
+        success, _, stdout, stderr = run_command(*cmd)
+        if not success or stdout.find("Token") == -1:
+            logging.error(stdout)
+            raise Exception("Died in get_host_tokens because: " + stderr)
+
+        logging.debug("host tokens found, creating host token list...")
+        for line in stdout.split("\n"):
+            if not line.startswith("Token"): continue
+            parts = line.split()
+            self.host_tokens.append(long(parts[-1]))
+        self.host_tokens.sort()
+        self.host_token_count = len(self.host_tokens)
+        return
+
+    
+    def format(self, value):
+        '''Return the correctly zero-padded string for the token.
+        :returns: the properly-formatted token.
+        '''
+        return self.FORMAT_TEMPLATE.format(value)
+    def get_range_termination(self, token):
+        """get the start token for the next range
+        :param token: Token to start from
+        :returns: The token that falls immediately after the argument token
+        """
+        for i in self.ring_tokens:
+            if token < i:
+                return i
+        # token is the largest value in the ring.  Since the rings wrap around,
+        # return the first value.
+        return self.ring_tokens[0]
+        
+    def sub_range_generator(self, start, stop, steps=100):
+        """Generate $step subranges between $start and $stop
+        :param start: beginning token in the range
+        :param stop: first token of the next range
+        :param steps: number of sub-ranges to create
+        :returns: string-formatted start value, string-formatted end value, current step number
+        There is special-case handling for when there are more steps than there
+        are keys in the range: just return the start and stop values.
+        """
+        step = 0
+        # This first case works for all but the highest-valued token.
+        if stop > start:
+            if start+steps+1 < stop:
+                step_increment = (stop - start) / steps
+
+                for i in range(start, stop, step_increment):
+                    local_end = i + step_increment
+                    if local_end > stop:
+                        local_end = stop
+                    if i == local_end:
+                        break
+                    step += 1
+                    yield self.format(i), self.format(local_end), step
+            else:
+                step += 1
+                yield self.format(start), self.format(stop), step
+        else:                     # This is the wrap-around case
+            steps -= 1            # Because of the wraparound, the odds are there will be an extra step.
+            distance = (self.RANGE_MAX - start) + (stop - self.RANGE_MIN) 
+            if distance > steps:
+                step_increment = distance / steps
+                # Can't use xrange here because the numbers are too large!
+                for i in range(start, self.RANGE_MAX, step_increment):
+                    local_end = i + step_increment
+                    if local_end > self.RANGE_MAX:
+                        local_end = self.RANGE_MAX
+                    if i == local_end:
+                        break
+                    step += 1
+                    yield self.format(i), self.format(local_end), step
+                for i in range(self.RANGE_MIN, stop, step_increment):
+                    local_end = i + step_increment
+                    if local_end > stop:
+                        local_end = stop
+                    if i == local_end:
+                        break
+                    step += 1
+                    yield self.format(i), self.format(local_end), step
+            else:
+                step += 1
+                yield self.format(start), self.format(stop), step
+
+def run_command(*command):
     """Execute a shell command and return the output
+    :param command: the command to be run and all of the arguments
+    :returns: success_boolean, command_string, stdout, stderr
     """
-    cmd = " ".join([command] + list(args))
+    cmd = " ".join(command)
+    logging.debug("run_command: " + cmd)
     proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = proc.communicate()
-    return proc.returncode == 0, proc.returncode, cmd, stdout, stderr
+    return proc.returncode == 0, cmd, stdout, stderr
 
-def is_murmur_ring(ring):
-    """check whether or not the ring is a Mumur3 ring
-    :param ring: ring information
+def repair_range(options, start, end, step):
+    """Repair a keyspace/columnfamily between a given token range with nodetool
+    :param options: OptionParser result
+    :param start: Beginning token in the range to repair (formatted string)
+    :param end: Ending token in the range to repair (formatted string)
+    :param step: The step we're executing (for logging purposes)
+    :returns: None
     """
-    for i in ring:
-        if i < 0:
-            return True
-    return False
+    setup_logging(options)
+    logging.debug(
+        "step {step:04d} repairing range ({start}, {end}) for keyspace {keyspace}".format(
+            step=step,
+            start=start,
+            end=end,
+            keyspace=options.keyspace))
 
-def get_ring_tokens(host=None):
-    """Gets the token information for the ring
-    """
-    tokens = []
-    logging.info("running nodetool ring, this will take a little bit of time")
-    cmd = ["nodetool"]
-    if host:
-        cmd.append("-h {host}".format(host=host))
-    cmd.append("ring")
-    success, return_code, _, stdout, stderr = run_command(" ".join(cmd))
+    cmd = [options.nodetool, "-h", options.host,
+           "repair", options.keyspace]
+    cmd.extend(options.columnfamily)
+    cmd.extend([options.local, options.snapshot,
+                "-pr", "-st", start, "-et", end])
+
+    success, cmd, _, stderr = run_command(*cmd)
 
     if not success:
-        return False, [], stderr
-
-    logging.debug("ring tokens found, creating ring token list...")
-    for line in stdout.split("\n")[6:]:
-        segments = line.split()
-        # Filter tokens from joining nodes
-        if (len(segments) == 8) and (segments[3] != "Joining"):
-            tokens.append(long(segments[-1]))
-
-    return True, sorted(tokens), None
-
-def get_host_tokens(host=None):
-    """Gets the tokens ranges for the target host
-    :param host: (optional) hostname
-    """
-    cmd = ["nodetool"]
-    if host:
-        cmd.append("-h {host}".format(host=host))
-    cmd.append("info -T")
-    success, return_code, _, stdout, stderr = run_command(" ".join(cmd))
-    if not success or stdout.find("Token") == -1:
-        logging.error(stdout)
-        return False, [], stderr
-    token_list = []
-    logging.debug("host tokens found, creating host token list...")
-    for line in stdout.split("\n"):
-        if not line.startswith("Token"): continue
-        parts = line.split()
-        token_list.append(long(parts[2]))
-
-    return True, token_list, None
-
-def get_range_termination(token, ring):
-    """get the last/largest token in the ring
-    :param token: Token to start from
-    :param ring: All of the tokens allocated in the ring
-    :returns: The token that falls immediately after the argument token
-    """
-    for i in ring:
-        if token < i:
-            return i
-    # token is the largest value in the ring.  Since the rings wrap around,
-    # return the first value.
-    return ring[0]
-
-def get_sub_range_generator(start, stop, steps=100):
-    """Generate $step subranges between $start and $stop
-    :param start: beginning token in the range
-    :param stop: ending token in the range
-    :param steps: number of sub-ranges to create
-
-    There is special-case handling for when there are more steps than there
-    are keys in the range: just return the start and stop values.
-    """
-    if start+steps+1 < stop:
-        step_increment = abs(stop - start) / steps
-        for i in lrange(start + step_increment, stop + 1, step_increment):
-            yield start, i
-            start = i
-        if start < stop:
-            yield start, stop
-    else:
-        yield start, stop
-
-def repair_range(keyspace, start, end, columnfamily=None, host=None):
-    """Repair a keyspace/columnfamily between a given token range with nodetool
-    :param keyspace: Cassandra keyspace to repair
-    :param start: Beginning token in the range to repair
-    :param end: Ending token in the range to repair
-    :param columnfamily: (optional) Cassandra Columnfamily to repair
-    :param host: (optional) Hostname to pass to nodetool
-    """
-    cmd = ["nodetool"]
-    if host:
-        cmd.append("-h {host}".format(host=host))
-    cmd.append("repair {keyspace}".format(keyspace=keyspace))
-    if columnfamily:
-        cmd.append(columnfamily)
-    cmd.append("-local -snapshot -pr -st {start} -et {end}".format(start=start, end=end))
-    success, return_code, cmd, stdout, stderr = run_command(" ".join(cmd))
-    return success, cmd, stdout, stderr
+        logging.error("FAILED: {0}".format(cmd))
+        logging.error(stderr)
+        return
+    logging.debug("step {step:04d} complete".format(step=step))
+    return
 
 def setup_logging(option_group):
     """Sets up logging in a syslog format by log level
@@ -161,92 +219,68 @@ def setup_logging(option_group):
     else:
         logging.basicConfig(level=logging.WARNING, format=log_format)
 
-def format_murmur(num):
-    """Format a number for Murmur3
-    :param num: Murmr3 number to be formatted
-    """
-    return "{0:020d}".format(num)
-
-def format_md5(num):
-    """Format a number for RandomPartitioner
-    :param num: RandomPartitioner number to be formatted
-    """
-    return "{0:039d}".format(num)
-
-def repair(keyspace, columnfamily=None, host=None, start_steps=100):
+def repair(options):
     """Repair a keyspace/columnfamily by breaking each token range into $start_steps ranges
-    :param keyspace: Cassandra keyspace to repair
-    :param columnfamily: Cassandra columnfamily to repair
-    :param host: (optional) Hostname to pass to nodetool 
-    :param start_steps: Number of sub-ranges to split primary range in to
+    :param options.keyspace: Cassandra keyspace to repair
+    :param options.host: (optional) Hostname to pass to nodetool 
+    :param options.steps: Number of sub-ranges to split primary range in to
+    :param options.workers: Number of workers to use
     """
-    success, ring_tokens, error = get_ring_tokens(host)
-    if not success:
-        logging.error("Error fetching ring tokens: {0}".format(error))
-        return False
+    tokens = Token_Container(options)
 
-    success, host_token_list, error = get_host_tokens(host)
-    if not success:
-        logging.error("Error fetching host token: {0}".format(error))
-        return False
-
-    total_tokens = len(host_token_list)
-    for token_num, host_token in enumerate(host_token_list):
-        steps = start_steps
-        range_termination = get_range_termination(host_token, ring_tokens)
-        formatter = format_murmur if is_murmur_ring(ring_tokens) else format_md5
-
+    worker_pool = multiprocessing.Pool(options.workers)
+    
+    for token_num, host_token in enumerate(tokens.host_tokens):
+        range_termination = tokens.get_range_termination(host_token)
+        
         logging.info(
             "[{count}/{total}] repairing range ({token}, {termination}) in {steps} steps for keyspace {keyspace}".format(
                 count=token_num + 1,
-                total=total_tokens,
-                token=formatter(host_token), 
-                termination=formatter(range_termination), 
-                steps=steps, 
-                keyspace=keyspace))
+                total=tokens.host_token_count,
+                token=tokens.format(host_token), 
+                termination=tokens.format(range_termination), 
+                steps=options.steps, 
+                keyspace=options.keyspace))
 
-        for start, end in get_sub_range_generator(host_token, range_termination, steps):
-            start = formatter(start)
-            end = formatter(end)
-
-            logging.debug(
-                "step {steps:04d} repairing range ({start}, {end}) for keyspace {keyspace}".format(
-                    steps=steps,
-                    start=start,
-                    end=end,
-                    keyspace=keyspace))
-
-            success, cmd, stdout, stderr = repair_range(
-                host=host, 
-                keyspace=keyspace, 
-                columnfamily=columnfamily, 
-                start=start, 
-                end=end)
-
-            if not success:
-                logging.error("FAILED: {0}".format(cmd))
-                logging.error(stderr)
-                return False
-            logging.debug("step {steps:04d} complete".format(steps=steps))
-            steps -= 1
-
-    return True
+        results = [worker_pool.apply_async(repair_range, (options, start, end, step))
+                   for start, end, step in tokens.sub_range_generator(host_token, range_termination, options.steps)]
+        for r in results:
+            r.get()
+    return
 
 def main():
     """Validate arguments and initiate repair
     """
     parser = OptionParser()
-    parser.add_option("-k", "--keyspace", dest="keyspace",
-                      help="Keyspace to repair (REQUIRED)", metavar="KEYSPACE")
+    parser.add_option("-k", "--keyspace", dest="keyspace", metavar="KEYSPACE",
+                      help="Keyspace to repair (REQUIRED)")
 
-    parser.add_option("-c", "--columnfamily", dest="cf", default=None,
-                      help="ColumnFamily to repair", metavar="COLUMNFAMILY")
+    parser.add_option("-c", "--columnfamily", dest="columnfamily", default=[],
+                      action="append", metavar="COLUMNFAMILY",
+                      help="ColumnFamily to repair, can appear multiple times")
 
-    parser.add_option("-H", "--host", dest="host",
-                      help="Hostname to repair", metavar="HOST")
+    parser.add_option("-H", "--host", dest="host", default=platform.node(),
+                      metavar="HOST", help="Hostname to repair [default: %default]")
 
     parser.add_option("-s", "--steps", dest="steps", type="int", default=100,
-                      help="Number of discrete ranges", metavar="STEPS")
+                      metavar="STEPS", help="Number of discrete ranges [default: %default]")
+
+    parser.add_option("-n", "--nodetool", dest="nodetool", default="nodetool",
+                      metavar="NODETOOL", help="Path to nodetool [default: %default]")
+
+    # The module default for workers is actually the CPU count, but we're
+    # going to override it to 1, which matches the old behavior of serial
+    # repairs.
+    parser.add_option("-w", "--workers", dest="workers", type="int", default=1,
+                      metavar="WORKERS", help="Number of workers to use for parallelism [default: %default]")
+
+    parser.add_option("-l", "--local", dest="local", default="",
+                      action="store_const", const="-local",
+                      metavar="LOCAL", help="Restrict repair to the local DC")
+
+    parser.add_option("-S", "--snapshot", dest="snapshot", default="",
+                      action="store_const", const="-snapshot",
+                      metavar="LOCAL", help="Use snapshots (pre-2.x only)")
 
     parser.add_option("-v", "--verbose", dest="verbose", action='store_true',
                       default=False, help="Verbose output")
@@ -256,18 +290,17 @@ def main():
 
     (options, args) = parser.parse_args()
 
-    if not options.keyspace:
+    if not options.keyspace:    # keyspace is a *required* parameter
+        parser.print_help()
+        sys.exit(1)
+
+    if args:                    # There are no positional parameters
         parser.print_help()
         sys.exit(1)
 
     setup_logging(options)
-    repair_status = repair(
-        keyspace=options.keyspace,
-        columnfamily=options.cf,
-        host=options.host,
-        start_steps=options.steps)
 
-    if repair_status:
+    if repair(options):
         sys.exit(0)
 
     sys.exit(2)
