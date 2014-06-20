@@ -2,17 +2,7 @@
 """
 This script will allow for smaller repairs of Cassandra ranges.
 
-#################################################
-# success, ring_tokens, error = get_ring_tokens()
-# success, host_token, error = get_host_token()
-# range_termination = get_range_termination(host_token, ring_tokens)
-# steps = 100
-
-# print repr(get_ring_tokens())
-# print repr(get_host_token())
-# print repr(get_range_termination(host_token, ring_tokens))
-# print repr(sub_range_generator(host_token, range_termination, steps).next())
-#################################################
+See the tests subdirectory for example code.
 """
 from optparse import OptionParser
 
@@ -210,21 +200,23 @@ def run_command(*command):
     stdout, stderr = proc.communicate()
     return proc.returncode == 0, cmd, stdout, stderr
 
-def repair_range(options, start, end, step):
+def repair_range(options, start, end, step, nodeposition):
     """Repair a keyspace/columnfamily between a given token range with nodetool
     :param options: OptionParser result
     :param start: Beginning token in the range to repair (formatted string)
     :param end: Ending token in the range to repair (formatted string)
     :param step: The step we're executing (for logging purposes)
+    :param nodeposition: string to indicate which node this particular step is for.
     :returns: None
     """
     setup_logging(options)
     logging.debug(
-        "step {step:04d} repairing range ({start}, {end}) for keyspace {keyspace}".format(
+        "{nodeposition} step {step:04d} repairing range ({start}, {end}) for keyspace {keyspace}".format(
             step=step,
             start=start,
             end=end,
-            keyspace=options.keyspace))
+            nodeposition=nodeposition,
+            keyspace=options.keyspace or "<all>"))
 
     cmd = [options.nodetool, "-h", options.host,
            "repair", options.keyspace]
@@ -232,26 +224,45 @@ def repair_range(options, start, end, step):
     cmd.extend([options.local, options.snapshot,
                 "-pr", "-st", start, "-et", end])
 
-    success, cmd, _, stderr = run_command(*cmd)
+    if not options.dry_run:
+        success, cmd, _, stderr = run_command(*cmd)
+    else:
+        success = True
 
     if not success:
-        logging.error("FAILED: {0}".format(cmd))
+        logging.error("FAILED: {nodeposition} step {step:04d} {cmd}".format(nodeposition=nodeposition, step=step, cmd=cmd))
         logging.error(stderr)
         return
-    logging.debug("step {step:04d} complete".format(step=step))
+    logging.debug("{nodeposition} step {step:04d} complete".format(nodeposition=nodeposition,step=step))
     return
 
 def setup_logging(option_group):
     """Sets up logging in a syslog format by log level
     :param option_group: options as returned by the OptionParser
     """
-    log_format = "%(levelname) -10s %(asctime)s %(funcName) -20s line:%(lineno) -5d: %(message)s"
+    stderr_log_format = "%(levelname) -10s %(asctime)s %(funcName) -20s line:%(lineno) -5d: %(message)s"
+    file_log_format = "%(asctime)s - %(levelname)s - %(message)s"
+    logger = logging.getLogger()
     if option_group.debug:
-        logging.basicConfig(level=logging.DEBUG, format=log_format)
+        logger.setLevel(level=logging.DEBUG)
     elif option_group.verbose:
-        logging.basicConfig(level=logging.INFO, format=log_format)
-    else:
-        logging.basicConfig(level=logging.WARNING, format=log_format)
+        logger.setLevel(level=logging.INFO)
+    elif option_group.verbose:
+        logger.setLevel(level=logging.WARNING)
+        
+    handlers = []
+    if option_group.syslog:
+        handlers.append(logging.SyslogHandler(facility=option_group.syslog))
+        # Use standard format here because timestamp and level will be added by syslogd.
+    if option_group.logfile:
+        handlers.append(logging.FileHandler(option_group.logfile))
+        handlers[0].setFormatter(logging.Formatter(file_log_format))
+    if not handlers:
+        handlers.append(logging.StreamHandler())
+        handlers[0].setFormatter(logging.Formatter(stderr_log_format))
+    for handler in handlers:
+        logger.addHandler(handler)
+    return
 
 def repair(options):
     """Repair a keyspace/columnfamily by breaking each token range into $start_steps ranges
@@ -276,7 +287,13 @@ def repair(options):
                 steps=options.steps, 
                 keyspace=options.keyspace))
 
-        results = [worker_pool.apply_async(repair_range, (options, start, end, step))
+        results = [worker_pool.apply_async(repair_range,
+                                           (options,
+                                            start,
+                                            end,
+                                            step,
+                                            "{count}/{total}".format(count=token_num + 1,
+                                                                     total=tokens.host_token_count)))
                    for start, end, step in tokens.sub_range_generator(host_token, range_termination, options.steps)]
         for r in results:
             r.get()
@@ -325,9 +342,18 @@ def main():
     parser.add_option("-d", "--debug", dest="debug", action='store_true',
                       default=False, help="Debugging output")
 
+    parser.add_option("--dry-run", dest="dry_run", action='store_true',
+                      default=False, help="Do not execute repairs.")
+
+    parser.add_option("--syslog", dest="syslog", metavar="FACILITY",
+                      help="Send log messages to the syslog")
+
+    parser.add_option("--logfile", dest="logfile", metavar="FILENAME",
+                      help="Send log messages to a file")
+
     (options, args) = parser.parse_args()
 
-    if not options.keyspace:    # keyspace is a *required* parameter
+    if options.columnfamily and not options.keyspace: # keyspace is a *required* for columfamilies
         parser.print_help()
         sys.exit(1)
 
