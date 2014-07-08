@@ -218,8 +218,8 @@ def repair_range(options, start, end, step, nodeposition):
             nodeposition=nodeposition,
             keyspace=options.keyspace or "<all>"))
 
-    cmd = [options.nodetool, "-h", options.host,
-           "repair", options.keyspace]
+    cmd = [options.nodetool, "-h", options.host, "repair"]
+    if options.keyspace: cmd.append(options.keyspace)
     cmd.extend(options.columnfamily)
     cmd.extend([options.local, options.snapshot,
                 "-pr", "-st", start, "-et", end])
@@ -285,7 +285,7 @@ def repair(options):
                 token=tokens.format(host_token), 
                 termination=tokens.format(range_termination), 
                 steps=options.steps, 
-                keyspace=options.keyspace))
+                keyspace=options.keyspace or "<all>"))
 
         results = [worker_pool.apply_async(repair_range,
                                            (options,
