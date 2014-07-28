@@ -364,10 +364,8 @@ def main():
 
     setup_logging(options)
 
-    if repair(options):
-        sys.exit(0)
-
-    sys.exit(2)
+    repair(options)
+    exit(0)
 
 if __name__ == "__main__":
     main()
