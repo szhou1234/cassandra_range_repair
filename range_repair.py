@@ -227,6 +227,7 @@ def repair_range(options, start, end, step, nodeposition):
     if not options.dry_run:
         success, cmd, _, stderr = run_command(*cmd)
     else:
+        print "{step:04d}/{nodeposition}".format(nodeposition=nodeposition, step=step), " ".join(cmd)
         success = True
 
     if not success:
