@@ -125,6 +125,7 @@ class Token_Container:
         :returns: the properly-formatted token.
         '''
         return self.FORMAT_TEMPLATE.format(value)
+
     def get_range_termination(self, token):
         """get the start token for the next range
         :param token: Token to start from
@@ -209,7 +210,6 @@ def repair_range(options, start, end, step, nodeposition):
     :param nodeposition: string to indicate which node this particular step is for.
     :returns: None
     """
-    setup_logging(options)
     logging.debug(
         "{nodeposition} step {step:04d} repairing range ({start}, {end}) for keyspace {keyspace}".format(
             step=step,
