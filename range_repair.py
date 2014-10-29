@@ -3,6 +3,8 @@
 This script will allow for smaller repairs of Cassandra ranges.
 
 See the tests subdirectory for example code.
+
+Source: https://github.com/BrianGallew/cassandra_range_repair
 """
 from optparse import OptionParser
 
