@@ -85,10 +85,11 @@ class Token_Container:
             raise Exception("Died in get_ring_tokens because: " + stderr)
 
         logging.debug("ring tokens found, creating ring token list...")
-        for line in stdout.split("\n")[6:]:
+        for line in stdout.split("\n")[4:]:
             segments = line.split()
             # Filter tokens from joining nodes
             if (len(segments) != 8) or (segments[3] == "Joining"):
+                logging.debug("Discarding: %s", line)
                 continue
             # If a datacenter has been specified, filter nodes that are in
             # different datacenters.
@@ -96,8 +97,10 @@ class Token_Container:
                 logging.debug("Discarding node/token %s/%s", segments[0], segments[-1])
                 continue
             self.ring_tokens.append(long(segments[-1]))
+            logging.debug(str(self.ring_tokens))
         self.ring_tokens.sort()
         logging.info("Found {0} tokens".format(len(self.ring_tokens)))
+        logging.debug(self.ring_tokens)
         return
 
     def get_host_tokens(self):
@@ -108,15 +111,15 @@ class Token_Container:
         success, _, stdout, stderr = run_command(*cmd)
         if not success or stdout.find("Token") == -1:
             logging.error(stdout)
-            raise Exception("Died in get_host_tokens because: " + stderr)
+            raise Exception("Died in get_host_tokens, success: %d, stderr: %s" % (success, stderr))
 
-        logging.debug("host tokens found, creating host token list...")
         for line in stdout.split("\n"):
             if not line.startswith("Token"): continue
             parts = line.split()
             self.host_tokens.append(long(parts[-1]))
         self.host_tokens.sort()
         self.host_token_count = len(self.host_tokens)
+        logging.debug("%d host tokens found", self.host_token_count)
         return
 
     
@@ -150,45 +153,33 @@ class Token_Container:
         step = 0
         # This first case works for all but the highest-valued token.
         if stop > start:
-            if start+steps+1 < stop:
-                step_increment = (stop - start) / steps
-
-                for i in range(start, stop, step_increment):
-                    local_end = i + step_increment
-                    if local_end > stop:
-                        local_end = stop
-                    if i == local_end:
-                        break
-                    step += 1
-                    yield self.format(i), self.format(local_end), step
+            if start+steps < stop+1:
+                step_increment = ((stop - start) / steps)
+                # We would have an extra, tiny step in the event the range
+                # is not evenly divisible by the number of steps.  This may
+                # give us one larger step at the end.
+                step_list = [self.format(x) for x in range(start, stop, step_increment)][0:steps]
             else:
                 step += 1
                 yield self.format(start), self.format(stop), step
         else:                     # This is the wrap-around case
-            steps -= 1            # Because of the wraparound, the odds are there will be an extra step.
             distance = (self.RANGE_MAX - start) + (stop - self.RANGE_MIN) 
-            if distance > steps:
+            if distance > steps-1:
                 step_increment = distance / steps
                 # Can't use xrange here because the numbers are too large!
-                for i in range(start, self.RANGE_MAX, step_increment):
-                    local_end = i + step_increment
-                    if local_end > self.RANGE_MAX:
-                        local_end = self.RANGE_MAX
-                    if i == local_end:
-                        break
-                    step += 1
-                    yield self.format(i), self.format(local_end), step
-                for i in range(self.RANGE_MIN, stop, step_increment):
-                    local_end = i + step_increment
-                    if local_end > stop:
-                        local_end = stop
-                    if i == local_end:
-                        break
-                    step += 1
-                    yield self.format(i), self.format(local_end), step
+                step_list = [self.format(x) for x in range(start, self.RANGE_MAX, step_increment)]
+                step_list.extend([self.format(x) for x in range(self.RANGE_MIN, stop, step_increment)])
+                if len(step_list) > steps-1:
+                    step_list.pop()
             else:
                 step += 1
                 yield self.format(start), self.format(stop), step
+        step_list.append(self.format(stop)) # Add the final number to the list
+        # Now iterate pair-wise over the list
+        while len(step_list) > 1:
+            step += 1
+            yield step_list[0], step_list[1], step
+            step_list.pop(0)
 
 def run_command(*command):
     """Execute a shell command and return the output
@@ -354,15 +345,17 @@ def main():
 
     (options, args) = parser.parse_args()
 
+    setup_logging(options)
+
     if options.columnfamily and not options.keyspace: # keyspace is a *required* for columfamilies
         parser.print_help()
+        logging.debug('Invalid configuration options')
         sys.exit(1)
 
     if args:                    # There are no positional parameters
         parser.print_help()
+        logging.debug('Extra parameters')
         sys.exit(1)
-
-    setup_logging(options)
 
     repair(options)
     exit(0)

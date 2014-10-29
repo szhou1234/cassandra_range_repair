@@ -61,7 +61,7 @@ class range_tests(unittest.TestCase):
         endpoint = (2**63)-30
         for x in t.sub_range_generator(endpoint, -endpoint, steps=6):
             resultset.append(x[0])
-        self.assertEquals(len(resultset), 6)
+        self.assertEquals(len(resultset), 7)
         return
         
     def test_Random_range_start_zero(self):

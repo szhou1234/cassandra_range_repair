@@ -1,0 +1,68 @@
+#! /bin/bash
+
+# In the info phase, delete any logfile, and return a 10-token nodetool result
+# In the ring info phase, return a 10-token ring set
+# In the actual test phase, log the run to the logfile
+
+info=$(echo -- $* | grep info)
+logfile=logfile.count
+if [ "x${info}" != "x" ]
+then
+    cat <<EOF
+ID               : ad03a002-cd4b-4b05-9a75-fc54ee2ddf7c
+Gossip active    : true
+Thrift active    : true
+Native Transport active: true
+Load             : 54.87 KB
+Generation No    : 1414505625
+Uptime (seconds) : 252
+Heap Memory (MB) : 231.98 / 1996.81
+Data Center      : datacenter1
+Rack             : rack1
+Exceptions       : 0
+Key Cache        : entries 6, size 440 (bytes), capacity 103809024 (bytes), 14 hits, 19 requests, 0.737 recent hit rate, 14400 save period in seconds
+Row Cache        : entries 0, size 0 (bytes), capacity 0 (bytes), 0 hits, 0 requests, NaN recent hit rate, 0 save period in seconds
+Counter Cache    : entries 0, size 0 (bytes), capacity 51380224 (bytes), 0 hits, 0 requests, NaN recent hit rate, 7200 save period in seconds
+Token            : -9160668489473828604
+Token            : -9095436176864828575
+Token            : -9017076369863282577
+Token            : -8970772197052689353
+Token            : -8956474287174223930
+Token            : -8894396044879244502
+Token            : -8840731191174577588
+Token            : -8778039678553750901
+Token            : -8766007690241598805
+Token            : -8256575561153603537
+EOF
+    test -f "${logfile}" && /bin/rm -f "${logfile}"
+    exit 0
+elif [ "x$(echo -- $* | grep ring)" != "x" ]
+then
+    cat <<EOF
+
+Datacenter: datacenter1
+==========
+Address    Rack        Status State   Load            Owns                Token
+                                                                          9182935009997885441
+127.0.0.1  rack1       Up     Normal  54.87 KB        100.00%             -9160668489473828604
+127.0.0.1  rack1       Up     Normal  54.87 KB        100.00%             -9095436176864828575
+127.0.0.1  rack1       Up     Normal  54.87 KB        100.00%             -9017076369863282577
+127.0.0.1  rack1       Up     Normal  54.87 KB        100.00%             -8970772197052689353
+127.0.0.1  rack1       Up     Normal  54.87 KB        100.00%             -8956474287174223930
+127.0.0.1  rack1       Up     Normal  54.87 KB        100.00%             -8894396044879244502
+127.0.0.1  rack1       Up     Normal  54.87 KB        100.00%             -8840731191174577588
+127.0.0.1  rack1       Up     Normal  54.87 KB        100.00%             -8778039678553750901
+127.0.0.1  rack1       Up     Normal  54.87 KB        100.00%             -8766007690241598805
+127.0.0.1  rack1       Up     Normal  54.87 KB        100.00%             -8256575561153603537
+
+  Warning: "nodetool ring" is used to output all the tokens of a node.
+  To view status related info of a node use "nodetool status" instead.
+
+EOF
+    exit 0
+else
+    echo -- "$@" >> "${logfile}"
+    let "x=(($RANDOM/3276))"
+    sleep $x
+    exit 0
+fi
