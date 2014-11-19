@@ -214,7 +214,7 @@ def repair_range(options, start, end, step, nodeposition):
     cmd = [options.nodetool, "-h", options.host, "repair"]
     if options.keyspace: cmd.append(options.keyspace)
     cmd.extend(options.columnfamily)
-    cmd.extend([options.local, options.snapshot,
+    cmd.extend([options.local, options.par, options.snapshot,
                 "-pr", "-st", start, "-et", end])
 
     if not options.dry_run:
@@ -325,6 +325,10 @@ def main():
     parser.add_option("-l", "--local", dest="local", default="",
                       action="store_const", const="-local",
                       metavar="LOCAL", help="Restrict repair to the local DC")
+
+    parser.add_option("-p", "--par", dest="par", default="",
+                      action="store_const", const="-par",
+                      metavar="PAR", help="carry out a parallel repair (post-2.x only)")
 
     parser.add_option("-S", "--snapshot", dest="snapshot", default="",
                       action="store_const", const="-snapshot",
