@@ -131,17 +131,17 @@ class Token_Container:
         '''
         return self.FORMAT_TEMPLATE.format(value)
 
-    def get_range_termination(self, token):
-        """get the start token for the next range
-        :param token: Token to start from
-        :returns: The token that falls immediately after the argument token
+    def get_preceding_token(self, token):
+        """get the end token of the previous range
+        :param token: Reference token
+        :returns: The token that falls immediately before the argument token
         """
-        for i in self.ring_tokens:
-            if token < i:
+        for i in reversed(self.ring_tokens):
+            if token > i:
                 return i
-        # token is the largest value in the ring.  Since the rings wrap around,
-        # return the first value.
-        return self.ring_tokens[0]
+        # token is the smallest value in the ring.  Since the rings wrap around,
+        # return the last value.
+        return self.ring_tokens[-1]
         
     def sub_range_generator(self, start, stop, steps=100):
         """Generate $step subranges between $start and $stop
@@ -270,13 +270,14 @@ def repair(options):
     worker_pool = multiprocessing.Pool(options.workers)
     
     for token_num, host_token in enumerate(tokens.host_tokens):
-        range_termination = tokens.get_range_termination(host_token)
-        
+        range_termination = host_token
+        range_start = tokens.get_preceding_token(range_termination)
+
         logging.info(
             "[{count}/{total}] repairing range ({token}, {termination}) in {steps} steps for keyspace {keyspace}".format(
                 count=token_num + 1,
                 total=tokens.host_token_count,
-                token=tokens.format(host_token), 
+                token=tokens.format(range_start),
                 termination=tokens.format(range_termination), 
                 steps=options.steps, 
                 keyspace=options.keyspace or "<all>"))
@@ -288,7 +289,7 @@ def repair(options):
                                             step,
                                             "{count}/{total}".format(count=token_num + 1,
                                                                      total=tokens.host_token_count)))
-                   for start, end, step in tokens.sub_range_generator(host_token, range_termination, options.steps)]
+                   for start, end, step in tokens.sub_range_generator(range_start, range_termination, options.steps)]
         for r in results:
             r.get()
     return
