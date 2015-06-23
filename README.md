@@ -44,12 +44,15 @@ Options:
   -S, --snapshot        Use snapshots (pre-2.x only)
   -v, --verbose         Verbose output
   -d, --debug           Debugging output
+  --dry-run             Do not execute repairs.
+  --syslog=FACILITY     Send log messages to the syslog
+  --logfile=FILENAME    Send log messages to a file
 ```
 
 ### Sample
 
 ```
-$ LOG_LEVEL="DEBUG" ./range_repair.py -k demo_keyspace
+$ ./range_repair.py -k demo_keyspace
 INFO       2014-05-09 17:31:33,503    get_ring_tokens                 66  : running nodetool ring, this will take a little bit of time
 DEBUG      2014-05-09 17:31:39,057    get_ring_tokens                 72  : ring tokens found, creating ring token list...
 DEBUG      2014-05-09 17:31:40,207    get_host_tokens                 86  : host tokens found, creating host token list...
