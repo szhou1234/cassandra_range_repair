@@ -60,7 +60,7 @@ class Token_Container:
             self.local_nodes.append(paragraph.split()[0])
         logging.info("Local nodes: " + " ".join(self.local_nodes))
         return
-        
+
     def check_for_MD5_tokens(self):
         """By default, the Token_Container assumes that the Murmur3 partitioner is
         in use.  If that's true, then the first token in the ring should
@@ -74,7 +74,7 @@ class Token_Container:
             self.RANGE_MIN = 0
             self.RANGE_MAX = (2**127) - 1
         return
-        
+
     def get_ring_tokens(self):
         """Gets the token information for the ring
         :returns: None
@@ -124,7 +124,7 @@ class Token_Container:
         logging.debug("%d host tokens found", self.host_token_count)
         return
 
-    
+
     def format(self, value):
         '''Return the correctly zero-padded string for the token.
         :returns: the properly-formatted token.
@@ -142,7 +142,7 @@ class Token_Container:
         # token is the smallest value in the ring.  Since the rings wrap around,
         # return the last value.
         return self.ring_tokens[-1]
-        
+
     def sub_range_generator(self, start, stop, steps=100):
         """Generate $step subranges between $start and $stop
         :param start: beginning token in the range
@@ -165,7 +165,7 @@ class Token_Container:
                 step += 1
                 yield self.format(start), self.format(stop), step
         else:                     # This is the wrap-around case
-            distance = (self.RANGE_MAX - start) + (stop - self.RANGE_MIN) 
+            distance = (self.RANGE_MAX - start) + (stop - self.RANGE_MIN)
             if distance > steps-1:
                 step_increment = distance / steps
                 # Can't use xrange here because the numbers are too large!
@@ -243,7 +243,7 @@ def setup_logging(option_group):
         logger.setLevel(level=logging.INFO)
     elif option_group.verbose:
         logger.setLevel(level=logging.WARNING)
-        
+
     handlers = []
     if option_group.syslog:
         handlers.append(logging.SyslogHandler(facility=option_group.syslog))
@@ -261,25 +261,31 @@ def setup_logging(option_group):
 def repair(options):
     """Repair a keyspace/columnfamily by breaking each token range into $start_steps ranges
     :param options.keyspace: Cassandra keyspace to repair
-    :param options.host: (optional) Hostname to pass to nodetool 
+    :param options.host: (optional) Hostname to pass to nodetool
     :param options.steps: Number of sub-ranges to split primary range in to
     :param options.workers: Number of workers to use
     """
     tokens = Token_Container(options)
 
     worker_pool = multiprocessing.Pool(options.workers)
-    
+
     for token_num, host_token in enumerate(tokens.host_tokens):
         range_termination = host_token
         range_start = tokens.get_preceding_token(range_termination)
 
+        if token_num < options.offset:
+            logging.info(
+                "[{count}/{total}] skipping token..".format(
+                    count=token_num + 1,
+                    total=tokens.host_token_count))
+            continue
         logging.info(
             "[{count}/{total}] repairing range ({token}, {termination}) in {steps} steps for keyspace {keyspace}".format(
                 count=token_num + 1,
                 total=tokens.host_token_count,
                 token=tokens.format(range_start),
-                termination=tokens.format(range_termination), 
-                steps=options.steps, 
+                termination=tokens.format(range_termination),
+                steps=options.steps,
                 keyspace=options.keyspace or "<all>"))
 
         results = [worker_pool.apply_async(repair_range,
@@ -310,6 +316,9 @@ def main():
 
     parser.add_option("-s", "--steps", dest="steps", type="int", default=100,
                       metavar="STEPS", help="Number of discrete ranges [default: %default]")
+
+    parser.add_option("-o", "--offset", dest="offset", type="int", default=0,
+                      metavar="OFFSET", help="Number of tokens to skip [default: %default]")
 
     parser.add_option("-n", "--nodetool", dest="nodetool", default="nodetool",
                       metavar="NODETOOL", help="Path to nodetool [default: %default]")
@@ -349,6 +358,9 @@ def main():
 
     parser.add_option("--logfile", dest="logfile", metavar="FILENAME",
                       help="Send log messages to a file")
+
+
+
 
     (options, args) = parser.parse_args()
 

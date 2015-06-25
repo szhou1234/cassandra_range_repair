@@ -34,6 +34,8 @@ Options:
   -H HOST, --host=HOST  Hostname to repair [default: $HOSTNAME]
   -s STEPS, --steps=STEPS
                         Number of discrete ranges [default: 100]
+  -o OFFSET, --offset=OFFSET
+                        Number of tokens to skip [default: 0]   
   -n NODETOOL, --nodetool=NODETOOL
                         Path to nodetool [default: nodetool]
   -w WORKERS, --workers=WORKERS
