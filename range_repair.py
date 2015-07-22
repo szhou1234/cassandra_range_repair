@@ -214,7 +214,7 @@ def repair_range(options, start, end, step, nodeposition):
     cmd = [options.nodetool, "-h", options.host, "repair"]
     if options.keyspace: cmd.append(options.keyspace)
     cmd.extend(options.columnfamily)
-    cmd.extend([options.local, options.par, options.snapshot,
+    cmd.extend([options.local, options.par, options.inc, options.snapshot,
                 "-pr", "-st", start, "-et", end])
 
     if not options.dry_run:
@@ -338,7 +338,11 @@ def main():
 
     parser.add_option("-p", "--par", dest="par", default="",
                       action="store_const", const="-par",
-                      metavar="PAR", help="carry out a parallel repair (post-2.x only)")
+                      metavar="PAR", help="Carry out a parallel repair (post-2.x only)")
+
+    parser.add_option("-i", "--inc", dest="inc", default="",
+                      action="store_const", const="-inc",
+                      metavar="INC", help="Carry out an incremental repair (post-2.1 only). Forces --par")
 
     parser.add_option("-S", "--snapshot", dest="snapshot", default="",
                       action="store_const", const="-snapshot",
@@ -375,6 +379,10 @@ def main():
         parser.print_help()
         logging.debug('Extra parameters')
         sys.exit(1)
+
+    if options.inc and not options.par:
+        logging.info('Incremental repairs needs --par: enabling')
+        options.par = '-par'
 
     repair(options)
     exit(0)
