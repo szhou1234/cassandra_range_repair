@@ -42,7 +42,8 @@ Options:
                         Number of workers to use for parallelism [default: 1]
   -D DATACENTER, --datacenter=DATACENTER
   -l, --local           Restrict repair to the local DC
-  -p, --par             carry out a parallel repair (post-2.x only)
+  -p, --par             Carry out a parallel repair (post-2.x only)
+  -i, --inc             Carry out an incremental repair (post-2.1 only).
   -S, --snapshot        Use snapshots (pre-2.x only)
   -v, --verbose         Verbose output
   -d, --debug           Debugging output
