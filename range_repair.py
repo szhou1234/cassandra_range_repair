@@ -214,8 +214,15 @@ def repair_range(options, start, end, step, nodeposition):
     cmd = [options.nodetool, "-h", options.host, "repair"]
     if options.keyspace: cmd.append(options.keyspace)
     cmd.extend(options.columnfamily)
+
+    # -local flag cannot be used in conjunction with -pr
+    if options.local:
+        cmd.extend([options.local])
+    else:
+        cmd.extend(["-pr"])
+        
     cmd.extend([options.local, options.par, options.inc, options.snapshot,
-                "-pr", "-st", start, "-et", end])
+                 "-st", start, "-et", end])
 
     if not options.dry_run:
         success, cmd, _, stderr = run_command(*cmd)
