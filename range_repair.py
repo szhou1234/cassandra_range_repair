@@ -221,7 +221,7 @@ def repair_range(options, start, end, step, nodeposition):
     else:
         cmd.extend(["-pr"])
         
-    cmd.extend([options.local, options.par, options.inc, options.snapshot,
+    cmd.extend([options.par, options.inc, options.snapshot,
                  "-st", start, "-et", end])
 
     if not options.dry_run:
