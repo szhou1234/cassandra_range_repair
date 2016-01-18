@@ -5,6 +5,8 @@ import os, sys, unittest, pkg_resources, mock, logging
 sys.path.insert(0, '..')
 sys.path.insert(0, '.')
 
+sys.path.insert(0,os.path.abspath(__file__+"/../../src"))
+
 import range_repair
 
 def fake_init(self, options):

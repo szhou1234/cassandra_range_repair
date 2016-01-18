@@ -1,0 +1,11 @@
+#!/bin/sh
+set -e 
+
+# Source debconf library.
+. /usr/share/debconf/confmodule
+
+## set permissions for executable
+range_repair="/usr/local/bin/range_repair.py"
+test -f $range_repair && chmod ugo+r,og-w,+x $range_repair
+
+exit 0
