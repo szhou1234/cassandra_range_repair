@@ -1,0 +1,55 @@
+CHANGES
+=======
+
+* Removing redundant local flag (part 2 of fix to use local and pr flags mutually exclusively)
+* Fix - use local or pr flag (cannot use both)
+* Add support for incremental repairs (post 2.1)
+* Adding token offset argument
+* Updating readme (removing reference to LOG_LEVEL env var and documenting some new flags)
+* fixed node range assignment (each node is responsible for the region of the ring between itself and its predecessor)
+* added support to parallel repairs (post 2.x)
+* Add site to the docstring
+* While working on #14 I discovered that not only was there a larger than expected number of repairs being performed, but also that there seemed to be one repair for every token where the start point was larger than the endpoint. This led me to refactor the entire sub-range generation process
+* fix duplicated log messages
+* repair() doesn't return anything, so checking the return value is silly
+* Make --dry-run print out the step information as well as the actual nodetool command to be run
+* Missed checking for the keyspace param in the repair_range(
+* Add more logging options (syslog and logfile). Enable a "dry-run" mode that doesn't execute the repairs. Don't require a keyspace to be specified unless one or more columfamilies are specified
+* I don't think the repairs ever worked for negative murmur3 tokens, because the old format string was only ever producing a 20-byte string *including* the minus sign. The new format string always prints the sign, and that work for 1.2.x. Someone testing on 2.x would be good
+* Add a CLI flag to specify the datacenter
+* Don't pre-join the arguments to run_command
+* Removed old partitioning constants. Decremented Murmur3 max value by one to match documentation
+* removed a debugging list reducer
+* Added default values to help output. Swapped out range() for xrange() because xrange() can't handle such large values
+* Updated README
+* This *works*, but still doesn't have multiprocessing
+* First major sweep through, still doesn't actually have any multiprocessing bits yet
+* The os module is no longer required
+* Added verbose/debug flags, don't bother with the environment variables anymore
+* restore help argument
+* fix docstring argument order
+* spelling failure
+* add host support to nodetool ring command
+* update readme
+* filter joining nodes
+* remove stray import
+* show progress with logging.info
+* Add host argument
+* https://github.com/mstump/cassandra_range_repair/issues/2
+* better completion logging
+* updated README
+* merging code cleanup
+* code cleanup and better logging
+* find() should return -1 if nothing is found
+* Extend it to work with vnodes. NB: this has not been tested against an old-fashioned, non-vnode ring
+* added lots of explanation to the README about the problems the script attempts to solve and how
+* made the script python2.5 compatible, and tested it
+* also use the -local option when performing the repair
+* also use the -snapshot option when performing the repair
+* Update README.md
+* Update README.md
+* put the __main__ trick in place
+* Create README.md
+* Update LICENSE.md
+* Create LICENSE.md
+* initial commit

@@ -1,0 +1,5 @@
+mock
+pbr
+pkg_resources
+logging
+subprocess
