@@ -1,6 +1,7 @@
 CHANGES
 =======
 
+* changes for debian packaging of cassandra_range_repair
 * Removing redundant local flag (part 2 of fix to use local and pr flags mutually exclusively)
 * Fix - use local or pr flag (cannot use both)
 * Add support for incremental repairs (post 2.1)
