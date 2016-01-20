@@ -13,6 +13,7 @@ import subprocess
 import sys
 import multiprocessing
 import platform
+import re
 
 class Token_Container:
     RANGE_MIN = -(2**63)
@@ -54,9 +55,10 @@ class Token_Container:
         # This is a really well-specified value.  If the format of the
         # output of 'nodetool gossipinfo' changes, this will have to be
         # revisited.
-        search_value = "\n  DC:{datacenter}\n".format(datacenter=self.options.datacenter)
+        search_regex = "DC:\d:{datacenter}".format(datacenter=self.options.datacenter)
         for paragraph in stdout.split("/"):
-            if not search_value in paragraph: continue
+            if not re.search(search_regex, paragraph):
+                continue
             self.local_nodes.append(paragraph.split()[0])
         logging.info("Local nodes: " + " ".join(self.local_nodes))
         return
