@@ -71,9 +71,27 @@ DEBUG      2014-05-09 17:33:54,904    repair_keyspace                 182 : SUCC
 -   Python 2.6
 -   Cassandra ```nodetool``` must exist in the ```PATH```
 
+## How To Test/Contribute
+1. You will need pbr (https://pypi.python.org/pypi/pbr) available in your $PYTHONPATH
+1. Go to the root of the cassandra_range_repair project on your local Git clone.
+2. Make the necessary changes you want included
+3. If you are testing the package on Unix/Linux based environment, make sure the package builds and tests ok
+
+```
+make clean
+make build
+make test
+make debian
+```
+
+4. Create a pull request to merge to the main branch
+5. Be patient and 
+
 ### History
 - Originally by [Matt Stump](https://github.com/mstump)
 - Converted to work with vnodes by [Brian Gallew](https://github.com/BrianGallew)
 - Additional functionality by [Eric Lubow](http://github.com/elubow)
 - Support for multiprocessing performed by [Brian Gallew](https://github.com/BrianGallew) with credit to [M. Jaszczyk](https://github.com/mjaszczyk)
 - Multiple datacenter support by [Brian Gallew](https://github.com/BrianGallew)
+- Support debian packaging [Venkatesh Kaushik] (https://github.com/higgsmass)
+
