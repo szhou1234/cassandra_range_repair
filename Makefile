@@ -6,7 +6,6 @@ help:
 	@echo "clean-pyc - remove Python file artifacts"
 	@echo "test - run tests quickly with the default Python"
 	@echo "release - package and upload a release"
-	@echo "sdist - package"
 
 clean: clean-build clean-pyc clean-pkg
 
@@ -30,6 +29,9 @@ clean-pkg:
 	find ../ -maxdepth 1 -iname '$(PACKAGE)_*_amd64.deb' -exec rm -f {} +
 	find ../ -maxdepth 1 -iname '$(PACKAGE)_*.dsc' -exec rm -f {} +
 	find ../ -maxdepth 1 -iname '$(PACKAGE)_*.tar.gz' -exec rm -f {} +
+
+build: clean
+	python setup.py build
 
 test:
 	python setup.py test
