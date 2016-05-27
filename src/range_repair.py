@@ -9,6 +9,7 @@ Source: https://github.com/BrianGallew/cassandra_range_repair
 from optparse import OptionParser
 
 import logging
+import logging.handlers
 import subprocess
 import sys
 import multiprocessing
@@ -255,7 +256,7 @@ def setup_logging(option_group):
 
     handlers = []
     if option_group.syslog:
-        handlers.append(logging.SyslogHandler(facility=option_group.syslog))
+        handlers.append(logging.handlers.SysLogHandler(facility=option_group.syslog))
         # Use standard format here because timestamp and level will be added by syslogd.
     if option_group.logfile:
         handlers.append(logging.FileHandler(option_group.logfile))
