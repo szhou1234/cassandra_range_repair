@@ -32,6 +32,7 @@ Options:
   -c COLUMNFAMILY, --columnfamily=COLUMNFAMILY
                         ColumnFamily to repair, can appear multiple times
   -H HOST, --host=HOST  Hostname to repair [default: $HOSTNAME]
+  -P PORT, --port=Port  JMX port to use for nodetool [default: 7199]
   -s STEPS, --steps=STEPS
                         Number of discrete ranges [default: 100]
   -o OFFSET, --offset=OFFSET
@@ -85,7 +86,6 @@ make debian
 ```
 
 4. Create a pull request to merge to the main branch
-5. Be patient and 
 
 ### History
 - Originally by [Matt Stump](https://github.com/mstump)
@@ -94,4 +94,3 @@ make debian
 - Support for multiprocessing performed by [Brian Gallew](https://github.com/BrianGallew) with credit to [M. Jaszczyk](https://github.com/mjaszczyk)
 - Multiple datacenter support by [Brian Gallew](https://github.com/BrianGallew)
 - Support debian packaging [Venkatesh Kaushik] (https://github.com/higgsmass)
-
