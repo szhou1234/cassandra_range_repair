@@ -47,7 +47,7 @@ class Token_Container:
             logging.debug("No datacenter specified, all ring members' tokens will be considered")
             return
         logging.debug("Determining local ring members")
-        cmd = [self.options.nodetool, "-h", self.options.host, "gossipinfo"]
+        cmd = [self.options.nodetool, "-h", self.options.host, "-p", self.options.port, "gossipinfo"]
         success, _, stdout, stderr = run_command(*cmd)
 
         if not success:
@@ -83,7 +83,7 @@ class Token_Container:
         :returns: None
         """
         logging.info("running nodetool ring, this will take a little bit of time")
-        cmd = [self.options.nodetool, "-h", self.options.host, "ring"]
+        cmd = [self.options.nodetool, "-h", self.options.host, "-p", self.options.port, "ring"]
         success, _, stdout, stderr = run_command(*cmd)
 
         if not success:
@@ -112,7 +112,7 @@ class Token_Container:
         """Gets the tokens ranges for the target host
         :returns: None
         """
-        cmd = [self.options.nodetool, "-h", self.options.host, "info", "-T"]
+        cmd = [self.options.nodetool, "-h", self.options.host, "-p", self.options.port, "info", "-T"]
         success, _, stdout, stderr = run_command(*cmd)
         if not success or stdout.find("Token") == -1:
             logging.error(stdout)
@@ -214,7 +214,7 @@ def repair_range(options, start, end, step, nodeposition):
             nodeposition=nodeposition,
             keyspace=options.keyspace or "<all>"))
 
-    cmd = [options.nodetool, "-h", options.host, "repair"]
+    cmd = [options.nodetool, "-h", options.host, "-p", options.port, "repair"]
     if options.keyspace: cmd.append(options.keyspace)
     cmd.extend(options.columnfamily)
 
@@ -272,6 +272,7 @@ def repair(options):
     """Repair a keyspace/columnfamily by breaking each token range into $start_steps ranges
     :param options.keyspace: Cassandra keyspace to repair
     :param options.host: (optional) Hostname to pass to nodetool
+    :param options.port: (optional) JMX Port to pass to nodetool
     :param options.steps: Number of sub-ranges to split primary range in to
     :param options.workers: Number of workers to use
     """
@@ -323,6 +324,9 @@ def main():
 
     parser.add_option("-H", "--host", dest="host", default=platform.node(),
                       metavar="HOST", help="Hostname to repair [default: %default]")
+
+    parser.add_option("-P", "--port", dest="port", default=7199,
+                      metavar="PORT", help="JMX port to use for nodetool commands [default: %default]")
 
     parser.add_option("-s", "--steps", dest="steps", type="int", default=100,
                       metavar="STEPS", help="Number of discrete ranges [default: %default]")
