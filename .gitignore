@@ -1,3 +1,6 @@
 logfile.count
 *.pyc
 *~
+/.eggs
+/build
+/cassandra_range_repair.egg-info
