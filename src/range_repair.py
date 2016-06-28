@@ -6,7 +6,7 @@ See the tests subdirectory for example code.
 
 Source: https://github.com/BrianGallew/cassandra_range_repair
 """
-from optparse import OptionParser
+from optparse import OptionParser, OptionGroup
 
 import logging
 import logging.handlers
@@ -15,6 +15,53 @@ import sys
 import multiprocessing
 import platform
 import re
+import collections
+import time
+
+
+ExponentialBackoffRetryerConfig = collections.namedtuple(
+    'ExponentialBackoffRetryerConfig', (
+        'max_tries',
+        'initial_sleep',
+        'sleep_factor'
+    )
+)
+
+
+class ExponentialBackoffRetryer:
+    def __init__(self, config, success_checker, executor, sleeper=lambda x: time.sleep(x)):
+        """Constructur.
+
+        Params:
+        config -- an instance of ExponentialBackoffRetryerConfig.
+        success_checker -- a callable that takes the result of the `executor` and returns true if the result was successful, False otherwise.
+        executor -- executes something and returns a result.
+        sleeper -- a callable that sleeps a number of seconds. Useful to be mocked for testing.
+        """
+        self.config = config
+        self.success_checker = success_checker
+        self.executor = executor
+        self.sleeper = sleeper
+
+    def __call__(self, *args, **kwargs):
+        next_sleep = self.config.initial_sleep
+        for i in range(self.config.max_tries):
+            result = self.executor(*args, **kwargs)
+            if self.success_checker(result):
+                return result
+            else:
+                logging.warning("Execution failed.")
+                last_iteration = (i == self.config.max_tries-1)
+                if not last_iteration:
+                    # Not reason to sleep if we aren't about to retry.
+                    logging.info("Sleeping %d seconds until retrying again.", next_sleep)
+                    self.sleeper(next_sleep)
+                    next_sleep *= self.config.sleep_factor
+                else:
+                    logging.warn("Giving up execution. Failed too many times.")
+
+        return result
+
 
 class TokenContainer:
     RANGE_MIN = -(2**63)
@@ -228,7 +275,10 @@ def repair_range(options, start, end, step, nodeposition):
                  "-st", start, "-et", end])
 
     if not options.dry_run:
-        success, cmd, _, stderr = run_command(*cmd)
+        retry_options = ExponentialBackoffRetryerConfig(options.max_tries, options.initial_sleep,
+            options.sleep_factor)
+        retryer = ExponentialBackoffRetryer(retry_options, lambda x: x[0], run_command)
+        success, cmd, _, stderr = retryer(*cmd)
     else:
         print "{step:04d}/{nodeposition}".format(nodeposition=nodeposition, step=step), " ".join(cmd)
         success = True
@@ -377,8 +427,21 @@ def main():
     parser.add_option("--logfile", dest="logfile", metavar="FILENAME",
                       help="Send log messages to a file")
 
+    expBackoffGroup = OptionGroup(parser, "Exponential backoff options",
+                                  "Every failed `nodetool repair` call can be retried using exponential backoff."
+                                  " This is useful if you have flaky connectivity between datacenters.")
 
+    expBackoffGroup.add_option("--max-tries", dest="max_tries", type="int", metavar="N", default=1,
+                               help="Number of times to rerun a failed `nodetool repair` call [default: %default]")
 
+    expBackoffGroup.add_option("--initial-sleep", dest="initial_sleep", type="float", metavar="SECONDS", default=1,
+                               help="Number of seconds to sleep first `nodetool repair` [default: %default]")
+
+    expBackoffGroup.add_option("--sleep-factor", dest="sleep_factor", type="float", metavar="N", default=2,
+                               help=("Multiplication factor that sleep time increases with for every failed"
+                                     " `nodetool repair` call [default: %default]"))
+
+    parser.add_option_group(expBackoffGroup)
 
     (options, args) = parser.parse_args()
 
