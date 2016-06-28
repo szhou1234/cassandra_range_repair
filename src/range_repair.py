@@ -16,7 +16,7 @@ import multiprocessing
 import platform
 import re
 
-class Token_Container:
+class TokenContainer:
     RANGE_MIN = -(2**63)
     RANGE_MAX = (2**63)-1
     FORMAT_TEMPLATE = "{0:+021d}"
@@ -65,7 +65,7 @@ class Token_Container:
         return
 
     def check_for_MD5_tokens(self):
-        """By default, the Token_Container assumes that the Murmur3 partitioner is
+        """By default, the TokenContainer assumes that the Murmur3 partitioner is
         in use.  If that's true, then the first token in the ring should
         have a negative value as long as the cluster has at least 3
         (v)nodes.  If the first token is not negative, switch the class
@@ -276,7 +276,7 @@ def repair(options):
     :param options.steps: Number of sub-ranges to split primary range in to
     :param options.workers: Number of workers to use
     """
-    tokens = Token_Container(options)
+    tokens = TokenContainer(options)
 
     worker_pool = multiprocessing.Pool(options.workers)
 

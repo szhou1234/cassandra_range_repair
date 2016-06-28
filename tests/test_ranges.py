@@ -26,7 +26,7 @@ class FakeOptions: pass
     
 class range_tests(unittest.TestCase):
     def setUp(self):
-        range_repair.Token_Container.__init__ = fake_init
+        range_repair.TokenContainer.__init__ = fake_init
         f = FakeOptions()
         f.keyspace='pathdb'
         f.columnfamily='path_claims'
@@ -43,7 +43,7 @@ class range_tests(unittest.TestCase):
 
     def test_Murmur3_range_start_zero(self):
         resultset = []
-        t = range_repair.Token_Container(self.f)
+        t = range_repair.TokenContainer(self.f)
         for x in t.sub_range_generator(0, 3000, steps=5):
             resultset.append(x[0])
         self.assertEquals(resultset, [t.format(0), t.format(600), t.format(1200), t.format(1800), t.format(2400)])
@@ -51,7 +51,7 @@ class range_tests(unittest.TestCase):
 
     def test_Murmur3_range_end_zero(self):
         resultset = []
-        t = range_repair.Token_Container(self.f)
+        t = range_repair.TokenContainer(self.f)
         for x in t.sub_range_generator(-3000, 0, steps=5):
             resultset.append(x[0])
         self.assertEquals(resultset, [t.format(-3000), t.format(-2400), t.format(-1800), t.format(-1200), t.format(-600)])
@@ -59,7 +59,7 @@ class range_tests(unittest.TestCase):
 
     def test_Murmur3_range_wrap(self):
         resultset = []
-        t = range_repair.Token_Container(self.f)
+        t = range_repair.TokenContainer(self.f)
         endpoint = (2**63)-30
         for x in t.sub_range_generator(endpoint, -endpoint, steps=6):
             resultset.append(x[0])
@@ -68,7 +68,7 @@ class range_tests(unittest.TestCase):
         
     def test_Random_range_start_zero(self):
         resultset = []
-        t = range_repair.Token_Container(self.f)
+        t = range_repair.TokenContainer(self.f)
         t.ring_tokens.append(0)
         t.check_for_MD5_tokens()
         for x in t.sub_range_generator(0, 3000, steps=5):
@@ -78,7 +78,7 @@ class range_tests(unittest.TestCase):
 
     def test_Random_range_end_zero(self):
         resultset = []
-        t = range_repair.Token_Container(self.f)
+        t = range_repair.TokenContainer(self.f)
         t.ring_tokens.append(0)
         t.check_for_MD5_tokens()
         for x in t.sub_range_generator(-3000, 0, steps=5):
@@ -88,7 +88,7 @@ class range_tests(unittest.TestCase):
 
     def test_Random_range_wrap(self):
         resultset = []
-        t = range_repair.Token_Container(self.f)
+        t = range_repair.TokenContainer(self.f)
         endpoint = (2**63)-30
         t.ring_tokens.append(0)
         t.check_for_MD5_tokens()
@@ -97,7 +97,7 @@ class range_tests(unittest.TestCase):
         self.assertEquals(len(resultset), 6)
         return
     def test_Murmur3_format_length(self):
-        t = range_repair.Token_Container(self.f)
+        t = range_repair.TokenContainer(self.f)
         self.assertEquals(21, len(t.format(0)))
         self.assertEquals(21, len(t.format(100)))
         self.assertEquals(21, len(t.format(-100)))
