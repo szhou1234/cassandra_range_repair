@@ -29,17 +29,19 @@ ExponentialBackoffRetryerConfig = collections.namedtuple(
 
 
 class ExponentialBackoffRetryer:
-    def __init__(self, config, success_checker, executor):
+    def __init__(self, config, success_checker, executor, sleeper=lambda x: time.sleep(x)):
         """Constructur.
 
         Params:
         config -- an instance of ExponentialBackoffRetryerConfig.
         success_checker -- a callable that takes the result of the `executor` and returns true if the result was successful, False otherwise.
         executor -- executes something and returns a result.
+        sleeper -- a callable that sleeps a number of seconds. Useful to be mocked for testing.
         """
         self.config = config
         self.success_checker = success_checker
         self.executor = executor
+        self.sleeper = sleeper
 
     def __call__(self, *args, **kwargs):
         next_sleep = self.config.initial_sleep
@@ -53,7 +55,7 @@ class ExponentialBackoffRetryer:
                 if not last_iteration:
                     # Not reason to sleep if we aren't about to retry.
                     logging.info("Sleeping %d seconds until retrying again.", next_sleep)
-                    time.sleep(next_sleep)
+                    self.sleeper(next_sleep)
                     next_sleep *= self.config.sleep_factor
                 else:
                     logging.warn("Giving up execution. Failed too many times.")
