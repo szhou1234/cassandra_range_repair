@@ -1,0 +1,11 @@
+language: python
+python:
+  - "2.7"
+# command to install dependencies
+install: "pip install pbr"
+# command to run tests
+script:
+  - make clean
+  - make build
+  - make test
+  - make debian
