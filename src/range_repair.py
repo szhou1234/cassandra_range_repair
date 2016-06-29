@@ -238,7 +238,7 @@ def run_command(*command):
     :param command: the command to be run and all of the arguments
     :returns: success_boolean, command_string, stdout, stderr
     """
-    cmd = " ".join(command)
+    cmd = " ".join(map(str, command))
     logging.debug("run_command: " + cmd)
     proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = proc.communicate()
@@ -375,7 +375,7 @@ def main():
     parser.add_option("-H", "--host", dest="host", default=platform.node(),
                       metavar="HOST", help="Hostname to repair [default: %default]")
 
-    parser.add_option("-P", "--port", dest="port", default=7199,
+    parser.add_option("-P", "--port", dest="port", default=7199, type="int",
                       metavar="PORT", help="JMX port to use for nodetool commands [default: %default]")
 
     parser.add_option("-s", "--steps", dest="steps", type="int", default=100,
