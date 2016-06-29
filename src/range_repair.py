@@ -23,7 +23,8 @@ ExponentialBackoffRetryerConfig = collections.namedtuple(
     'ExponentialBackoffRetryerConfig', (
         'max_tries',
         'initial_sleep',
-        'sleep_factor'
+        'sleep_factor',
+        'max_sleep',
     )
 )
 
@@ -55,7 +56,9 @@ class ExponentialBackoffRetryer:
                 if not last_iteration:
                     # Not reason to sleep if we aren't about to retry.
                     logging.info("Sleeping %d seconds until retrying again.", next_sleep)
-                    self.sleeper(next_sleep)
+                    self.sleeper(next_sleep
+                                 if self.config.max_sleep <= 0
+                                 else min(next_sleep, self.config.max_sleep))
                     next_sleep *= self.config.sleep_factor
                 else:
                     logging.warn("Giving up execution. Failed too many times.")
@@ -276,7 +279,7 @@ def repair_range(options, start, end, step, nodeposition):
 
     if not options.dry_run:
         retry_options = ExponentialBackoffRetryerConfig(options.max_tries, options.initial_sleep,
-            options.sleep_factor)
+            options.sleep_factor, options.max_sleep)
         retryer = ExponentialBackoffRetryer(retry_options, lambda x: x[0], run_command)
         success, cmd, _, stderr = retryer(*cmd)
     else:
@@ -440,6 +443,10 @@ def main():
     expBackoffGroup.add_option("--sleep-factor", dest="sleep_factor", type="float", metavar="N", default=2,
                                help=("Multiplication factor that sleep time increases with for every failed"
                                      " `nodetool repair` call [default: %default]"))
+
+    expBackoffGroup.add_option("--max-sleep", dest="max_sleep", type="float", metavar="N", default=1800,
+                               help=("Maximum time in seconds the retryer is allowed to sleep. Set to zero or"
+                                     " negative to disable. [default: %default]"))
 
     parser.add_option_group(expBackoffGroup)
 

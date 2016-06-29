@@ -21,13 +21,13 @@ class FailingExecutor:
             return True
 
 
-def build_fake_retryer(nfails, maxtries):
+def build_fake_retryer(nfails, maxtries, maxsleep=10):
     executor = FailingExecutor(nfails)
 
     sleeps = []
     sleeper = lambda seconds: sleeps.append(seconds)
 
-    config = range_repair.ExponentialBackoffRetryerConfig(maxtries, 1, 2)
+    config = range_repair.ExponentialBackoffRetryerConfig(maxtries, 1, 2, maxsleep)
     retryer = range_repair.ExponentialBackoffRetryer(config, lambda ok: ok, executor, sleeper)
 
     return retryer, sleeps
@@ -53,3 +53,17 @@ class RetryTests(unittest.TestCase):
         retryer, sleeps = build_fake_retryer(10, 5)
         self.assertEquals(retryer(), False)
         self.assertEquals(sleeps, [1, 2, 4, 8])
+
+    def test_max_sleep(self):
+        retryer, sleeps = build_fake_retryer(10, 7)
+        self.assertEquals(retryer(), False)
+        self.assertEquals(sleeps, [1, 2, 4, 8, 10, 10])
+
+    def test_disabling_max_sleep(self):
+        retryer, sleeps = build_fake_retryer(10, 7, 0)
+        self.assertEquals(retryer(), False)
+        self.assertEquals(sleeps, [1, 2, 4, 8, 16, 32])
+
+        retryer, sleeps = build_fake_retryer(10, 7, -1)
+        self.assertEquals(retryer(), False)
+        self.assertEquals(sleeps, [1, 2, 4, 8, 16, 32])
