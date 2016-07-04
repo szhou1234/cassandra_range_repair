@@ -283,7 +283,7 @@ def repair_range(options, start, end, step, nodeposition):
         retryer = ExponentialBackoffRetryer(retry_options, lambda x: x[0], run_command)
         success, cmd, _, stderr = retryer(*cmd)
     else:
-        print "{step:04d}/{nodeposition}".format(nodeposition=nodeposition, step=step), " ".join(cmd)
+        print "{step:04d}/{nodeposition}".format(nodeposition=nodeposition, step=step), " ".join([str(x) for x in cmd])
         success = True
 
     if not success:
